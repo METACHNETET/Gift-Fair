@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Business profiles
+    match /businesses/{businessId} {
+      function isValidBusiness(data) {
+        return data.keys().hasAll(['ownerId', 'name']) && 
+               data.ownerId is string && 
+               data.name is string && data.name.size() > 0 && data.name.size() < 100;
+      }
+      
+      allow read: if true; // Public profiles
+      allow create: if isSignedIn() && isOwner(request.resource.data.ownerId) && isValidBusiness(request.resource.data);
+      allow update: if isOwner(resource.data.ownerId) && isValidBusiness(request.resource.data) && 
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'description', 'logoUrl', 'website']);
+    }
+
+    // Fairs
+    match /fairs/{fairId} {
+      allow read: if true;
+      allow write: if false; // Only admins (manual/backend) can create fairs for now
+      
+      // Shops in a fair
+      match /shops/{shopId} {
+        function isValidShop(data) {
+          return data.keys().hasAll(['fairId', 'businessId', 'giftName']) &&
+                 data.fairId == fairId &&
+                 data.businessId is string &&
+                 data.giftName is string && data.giftName.size() > 0;
+        }
+
+        allow read: if true;
+        allow create: if isSignedIn() && isValidShop(request.resource.data); // Anyone signed in as business can join fair
+        allow update: if isSignedIn() && request.resource.data.businessId == resource.data.businessId && isValidShop(request.resource.data);
+
+        // Leads in a shop
+        match /leads/{leadId} {
+          function isValidLead(data) {
+            return data.keys().hasAll(['shopId', 'email', 'name']) &&
+                   data.email is string && data.email.size() > 5 &&
+                   data.name is string && data.name.size() > 1;
+          }
+
+          // Only shop owners can see their leads
+          allow read: if isSignedIn() && get(/databases/$(database)/documents/fairs/$(fairId)/shops/$(shopId)).data.businessId == request.auth.uid;
+          allow create: if true; // Anyone can sign up for a gift
+        }
+      }
+    }
+  }
+}

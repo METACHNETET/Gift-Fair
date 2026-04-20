@@ -1,0 +1,82 @@
+{
+  "entities": {
+    "Business": {
+      "title": "Business",
+      "description": "Details about a participating business owner.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "website": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "name"]
+    },
+    "Fair": {
+      "title": "Fair",
+      "description": "Information about a specific lead-gen fair event.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "bannerUrl": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "isActive"]
+    },
+    "Shop": {
+      "title": "Shop",
+      "description": "A business's presence in a specific fair.",
+      "type": "object",
+      "properties": {
+        "fairId": { "type": "string" },
+        "businessId": { "type": "string" },
+        "giftName": { "type": "string" },
+        "giftDescription": { "type": "string" },
+        "giftImageUrl": { "type": "string" },
+        "giftFileUrl": { "type": "string" },
+        "leadsCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fairId", "businessId", "giftName"]
+    },
+    "Lead": {
+      "title": "Lead",
+      "description": "Contact information of a user who claimed a gift.",
+      "type": "object",
+      "properties": {
+        "shopId": { "type": "string" },
+        "fairId": { "type": "string" },
+        "businessId": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "claimedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["shopId", "email", "name"]
+    }
+  },
+  "firestore": {
+    "/businesses/{businessId}": {
+      "schema": "Business",
+      "description": "Registry of business owners."
+    },
+    "/fairs/{fairId}": {
+      "schema": "Fair",
+      "description": "Events listing."
+    },
+    "/fairs/{fairId}/shops/{shopId}": {
+      "schema": "Shop",
+      "description": "Shops participating in a fair."
+    },
+    "/fairs/{fairId}/shops/{shopId}/leads/{leadId}": {
+      "schema": "Lead",
+      "description": "Leads collected by a specific shop."
+    }
+  }
+}

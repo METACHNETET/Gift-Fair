@@ -1,11 +1,28 @@
-<div align="center">
+# יריד המתנות הדיגיטלי - Lead Fair App 🎁
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+פלטפורמה חכמה ומעוצבת לאיסוף לידים ושיתוף פעולה בין בעלות עסקים באמצעות יריד מתנות דיגיטליות.
 
-  <h1>Built with AI Studio</h2>
+## ✨ תכונות עיקריות
+- **עיצוב משגע:** ממשק משתמש מודרני, נקי ויוקרתי המותאם לעברית.
+- **ניהול חנות אישית:** כל בעלת עסק יכולה להוסיף מתנה, לתאר אותה ולהעלות תמונה.
+- **איסוף לידים:** טופס הרשמה מהיר לכל מתנה השומר את הפרטים במסד נתונים מאובטח.
+- **אזור אישי (Dashboard):** ניהול הלידים, ייצוא ל-CSV ומעקב אחר נרשמות.
+- **ויראליות:** מערכת לינקים אישיים המעודדת כל משתתפת לשתף את היריד ולהגדיל את החשיפה לכולן.
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## 🛠 טכנולוגיות
+- **Frontend:** React 19, Vite, Tailwind CSS 4.
+- **UI Components:** Shadcn UI, Framer Motion (Animations), Lucide React (Icons).
+- **Backend & Auth:** Firebase (Firestore, Authentication).
+- **Language:** TypeScript.
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## 🚀 הוראות הפעלה (לפיתוח מקומי)
+1. שכפלו את המאגר: `git clone <repo-url>`
+2. התקינו תלויות: `npm install`
+3. הגדירו קובץ `.env` עם פרטי ה-Firebase שלכם (השתמשו ב-`.env.example` כבסיס).
+4. הריצו את השרת: `npm run dev`
 
-</div>
+## 🔒 אבטחה
+הפרויקט כולל חוקי אבטחה (Firestore Rules) המבטיחים שמידע הלידים יישאר פרטי ונגיש רק לבעלת העסק הרלוונטית.
+
+---
+נבנה באהבה על ידי AI Builder 🚀
