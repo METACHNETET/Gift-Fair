@@ -54,6 +54,7 @@ const DEMO_SHOPS: Shop[] = [
     giftName: "ערכת גלואו מיני",
     giftDescription: "ערכת התנסות יוקרתית לעור זוהר עם סרום ומסכת לילה.",
     giftImageUrl: "https://picsum.photos/seed/giftfair1/600/360",
+    logoUrl: "/logos/shop-1.png",
     leadsCount: 0,
   },
   {
@@ -157,29 +158,11 @@ function ShopBuilding({
   const houseImage = HOUSE_IMAGES[idx % HOUSE_IMAGES.length];
 
   return (
-    <div className="flex flex-col items-center select-none" style={{ width: 190 }}>
-      {/* floating gift / collected badge */}
-      <div className="h-16 flex items-end justify-center pb-2">
-        {isActive && !isCollected && (
-          <motion.div
-            animate={{ y: [-5, 5, -5], rotate: [-4, 4, -4] }}
-            transition={{ repeat: Infinity, duration: 1.4 }}
-            className="text-6xl"
-            style={{ filter: "drop-shadow(0 4px 10px rgba(0,0,0,.35))" }}
-            title="עצרי ליד הבית כדי לאסוף את המתנה"
-          >🎁</motion.div>
-        )}
-        {isCollected && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="w-9 h-9 rounded-full bg-green-500 flex items-center justify-center text-white font-bold shadow-md text-lg"
-          >✓</motion.div>
-        )}
-      </div>
+    // Outer wrapper — tall enough for the gift emoji + building
+    <div className="relative select-none" style={{ width: 460, height: 340 }}>
 
-      {/* house image */}
-      <div className="relative w-full h-[190px]">
+      {/* ── House image — anchored to bottom ─────────────────────── */}
+      <div className="absolute bottom-0 w-full h-[190px]" style={{ zIndex: 1 }}>
         <img
           src={houseImage}
           alt={`בית ${idx + 1}`}
@@ -187,17 +170,173 @@ function ShopBuilding({
           style={{ transform: `scale(${HOUSE_SCALE})`, transformOrigin: "bottom center" }}
           draggable={false}
         />
-        {isActive && !isCollected && (
-          <motion.div
-            className="absolute inset-5 rounded-2xl"
-            style={{ background: "radial-gradient(circle, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 70%)" }}
-            animate={{ opacity: [0.35, 0.7, 0.35] }}
-            transition={{ repeat: Infinity, duration: 0.9 }}
-          />
-        )}
+      </div>
+
+      {/* ── Business sign — in front of house ────────────────────── */}
+      <div
+        className="absolute flex flex-col items-center"
+        style={{ bottom: 190, zIndex: 10, right: -580 }}
+      >
+        {/* board */}
+        <div
+          className="relative flex items-center justify-center rounded-xl overflow-hidden"
+          style={{
+            width: 440, height: 192,
+            background: "linear-gradient(135deg,#fffdf7 60%,#fef3c7)",
+            border: "12px solid #78350f",
+            boxShadow: "0 8px 32px rgba(0,0,0,.5), inset 0 2px 0 rgba(255,255,255,.7)",
+          }}
+        >
+          {/* decorative top stripe */}
+          <div className="absolute top-0 left-0 right-0" style={{ height: 8, background: "#92400e" }} />
+          {shop.logoUrl ? (
+            <img
+              src={shop.logoUrl}
+              alt={shop.businessName}
+              className="w-full h-full object-contain"
+              style={{ padding: "20px 12px 8px" }}
+              draggable={false}
+            />
+          ) : (
+            <div className="flex flex-col items-center gap-3 mt-4">
+              <div className="rounded-full bg-stone-300" style={{ width: 200, height: 22 }} />
+              <div className="rounded-full bg-stone-200" style={{ width: 140, height: 16 }} />
+            </div>
+          )}
+        </div>
+        {/* post */}
+        <div style={{ width: 20, height: 100, background: "#78350f", borderRadius: 4 }} />
       </div>
 
     </div>
+  );
+}
+
+// ─── FireworksOverlay ─────────────────────────────────────────────────────────
+const FX_COLORS = [
+  "#ff6b6b","#ffd43b","#69db7c","#4dabf7","#da77f2",
+  "#ff8787","#ffa94d","#a9e34b","#74c0fc","#f783ac",
+  "#ffe066","#63e6be","#748ffc","#e599f7","#ff922b",
+];
+
+function FireworksOverlay({ nonce }: { nonce: number }) {
+  const data = React.useMemo(() => {
+    const bursts = Array.from({ length: 9 }, () => ({
+      x: 8 + Math.random() * 84,
+      y: 6 + Math.random() * 52,
+      delay: Math.random() * 0.8,
+      color: FX_COLORS[Math.floor(Math.random() * FX_COLORS.length)],
+      particles: Array.from({ length: 24 }, (_, pi) => {
+        const angle = (pi / 24) * Math.PI * 2 + (Math.random() - 0.5) * 0.35;
+        const dist = 90 + Math.random() * 140;
+        return {
+          angle, dist,
+          color: FX_COLORS[Math.floor(Math.random() * FX_COLORS.length)],
+          size: 5 + Math.random() * 9,
+          dur: 0.8 + Math.random() * 0.6,
+        };
+      }),
+    }));
+    const stars = Array.from({ length: 32 }, () => ({
+      x: Math.random() * 100,
+      delay: Math.random() * 2.0,
+      dur: 1.4 + Math.random() * 1.0,
+      emoji: ["⭐","✨","🌟","💫","🎊","🎉","💥","🥳","⚡","🌈"][Math.floor(Math.random() * 10)],
+      size: 18 + Math.floor(Math.random() * 26),
+      spin: (Math.random() > 0.5 ? 1 : -1) * (200 + Math.random() * 320),
+    }));
+    return { bursts, stars };
+  }, [nonce]);
+
+  return (
+    <motion.div
+      className="fixed inset-0 pointer-events-none"
+      style={{ zIndex: 9999 }}
+      initial={{ opacity: 1 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      {/* Soft screen flash */}
+      <motion.div
+        className="absolute inset-0"
+        style={{ background: "radial-gradient(circle at 50% 40%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 65%)" }}
+        initial={{ opacity: 1 }}
+        animate={{ opacity: 0 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+      />
+
+      {data.bursts.map((burst, bi) => (
+        <React.Fragment key={bi}>
+          {/* Rocket shooting upward */}
+          <motion.div
+            className="absolute rounded-full"
+            style={{
+              left: `${burst.x}vw`,
+              bottom: 0,
+              width: 5, height: 5,
+              background: burst.color,
+              boxShadow: `0 0 10px 5px ${burst.color}`,
+            }}
+            initial={{ y: 0, opacity: 1, scaleY: 1 }}
+            animate={{ y: `-${(100 - burst.y) * 1.05}vh`, opacity: 0.3, scaleY: 4 }}
+            transition={{ duration: 0.38 + burst.delay * 0.3, ease: "easeOut", delay: burst.delay }}
+          />
+
+          {/* Glow flash at burst point */}
+          <motion.div
+            className="absolute rounded-full"
+            style={{
+              left: `${burst.x}vw`,
+              top: `${burst.y}vh`,
+              transform: "translate(-50%, -50%)",
+              width: 24, height: 24,
+              background: burst.color,
+              boxShadow: `0 0 80px 40px ${burst.color}`,
+            }}
+            initial={{ scale: 0, opacity: 1 }}
+            animate={{ scale: 7, opacity: 0 }}
+            transition={{ duration: 0.5, ease: "easeOut", delay: burst.delay + 0.36 }}
+          />
+
+          {/* Particles */}
+          {burst.particles.map((p, pi) => (
+            <motion.div
+              key={pi}
+              className="absolute rounded-full"
+              style={{
+                left: `${burst.x}vw`,
+                top: `${burst.y}vh`,
+                width: p.size,
+                height: p.size,
+                background: p.color,
+                boxShadow: `0 0 ${p.size * 2}px ${p.size}px ${p.color}99`,
+              }}
+              initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
+              animate={{
+                x: Math.cos(p.angle) * p.dist,
+                y: Math.sin(p.angle) * p.dist * 0.55 + p.dist * 0.25,
+                opacity: 0,
+                scale: 0.15,
+              }}
+              transition={{ duration: p.dur, ease: [0.22, 0.61, 0.36, 1], delay: burst.delay + 0.37 }}
+            />
+          ))}
+        </React.Fragment>
+      ))}
+
+      {/* Falling emoji stars */}
+      {data.stars.map((s, i) => (
+        <motion.span
+          key={i}
+          className="absolute select-none"
+          style={{ left: `${s.x}%`, top: -44, fontSize: s.size, lineHeight: 1 }}
+          initial={{ y: 0, opacity: 1, rotate: 0 }}
+          animate={{ y: "108vh", opacity: [1, 1, 1, 0], rotate: s.spin }}
+          transition={{ duration: s.dur, delay: s.delay, ease: "easeIn" }}
+        />
+      ))}
+    </motion.div>
   );
 }
 
@@ -565,8 +704,11 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
       }
     };
 
-    // Resume: wait only the remaining portion of this leg
-    const remaining = Math.max(50, WORLD_MOVE_INTERVAL_MS - legAccumulatedMsRef.current);
+    // First drive (accumulated=0): advance immediately so first house moves at once.
+    // Resume after pause: wait only the leftover portion of the current leg.
+    const remaining = legAccumulatedMsRef.current > 0
+      ? Math.max(50, WORLD_MOVE_INTERVAL_MS - legAccumulatedMsRef.current)
+      : 0;
     nextTid = window.setTimeout(advance, remaining);
 
     return () => {
@@ -583,7 +725,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
 
   useEffect(() => {
     if (!stopFx) return;
-    const id = window.setTimeout(() => setStopFx(null), 1200);
+    const id = window.setTimeout(() => setStopFx(null), 3200);
     return () => window.clearTimeout(id);
   }, [stopFx]);
 
@@ -726,6 +868,22 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
               />
             </div>
           ))}
+
+          {/* vegetation strip — moves with the world */}
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              left: 0,
+              right: -600,
+              bottom: -50,
+              height: 560,
+              zIndex: 7,
+              backgroundImage: "url('/vegetation.png')",
+              backgroundRepeat: "repeat-x",
+              backgroundSize: "auto 560px",
+              backgroundPosition: "bottom center",
+            }}
+          />
         </motion.div>
 
         {/* ── Full-width road (fixed, behind everything scrollable) ─────── */}
@@ -759,17 +917,67 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
         {/* ── Car (fixed in viewport) ───────────────────────────────────── */}
         <div className="absolute z-10"
           style={{ right: CAR_RIGHT_OFFSET, bottom: 4 }}>
-          <img
-            src="/houses/car.png"
-            alt="רכב מתנות"
-            className="w-[260px] md:w-[320px] h-auto select-none pointer-events-none"
-            style={{
-              filter: "drop-shadow(2px 6px 10px rgba(0,0,0,.4))",
-              transform: "scale(4)",
-              transformOrigin: "bottom right",
-            }}
-            draggable={false}
-          />
+
+          {/* exhaust smoke — shown only while driving */}
+          {isDriving && [0, 1, 2, 3].map((i) => (
+            <motion.div
+              key={i}
+              className="absolute rounded-full pointer-events-none"
+              style={{
+                width: 40,
+                height: 40,
+                right: 320,
+                bottom: 158,
+                background: "radial-gradient(circle, rgba(90,90,90,0.75) 0%, rgba(130,130,130,0.2) 55%, rgba(150,150,150,0) 75%)",
+                filter: "blur(6px)",
+              }}
+              animate={{
+                x: [0, (10 + i * 8), (22 + i * 16), (36 + i * 22)],
+                y: [0, -(8 + i * 5), -(18 + i * 9), -(30 + i * 13)],
+                opacity: [0, 0.85, 0.5, 0],
+                scale: [0.6, 1.2 + i * 0.2, 2.0 + i * 0.3, 3.0 + i * 0.4],
+              }}
+              transition={{
+                duration: 2.2,
+                delay: i * 0.55,
+                repeat: Infinity,
+                ease: "easeInOut",
+                times: [0, 0.2, 0.6, 1],
+              }}
+            />
+          ))}
+
+          {/* scaled car + wheels wrapper */}
+          <div style={{ position: "relative", display: "inline-block", transform: "scale(4)", transformOrigin: "bottom right" }}>
+            <img
+              src="/houses/car.png"
+              alt="רכב מתנות"
+              className="w-[260px] md:w-[320px] h-auto select-none pointer-events-none"
+              style={{
+                filter: "drop-shadow(2px 6px 10px rgba(0,0,0,.4))",
+                display: "block",
+              }}
+              draggable={false}
+            />
+            {/* front wheel (left side) */}
+            <motion.div
+              style={{ position: "absolute", left: 100, bottom: 22, width: 38, height: 38, borderRadius: "50%", overflow: "hidden", pointerEvents: "none", opacity: isDriving ? 1 : 0 }}
+              animate={{ rotate: isDriving ? 360 : 0 }}
+              transition={{ duration: 0.5, repeat: Infinity, ease: "linear" }}
+            >
+              <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: 2, background: "rgba(50,50,50,0.45)", transform: "translateY(-50%)" }} />
+              <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 2, background: "rgba(50,50,50,0.45)", transform: "translateX(-50%)" }} />
+            </motion.div>
+            {/* rear wheel (right side) */}
+            <motion.div
+              style={{ position: "absolute", left: 188, bottom: 22, width: 38, height: 38, borderRadius: "50%", overflow: "hidden", pointerEvents: "none", opacity: isDriving ? 1 : 0 }}
+              animate={{ rotate: isDriving ? 360 : 0 }}
+              transition={{ duration: 0.5, repeat: Infinity, ease: "linear" }}
+            >
+              <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: 2, background: "rgba(50,50,50,0.45)", transform: "translateY(-50%)" }} />
+              <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 2, background: "rgba(50,50,50,0.45)", transform: "translateX(-50%)" }} />
+            </motion.div>
+          </div>
         </div>
 
         {/* ── Shop popup card ───────────────────────────────────────────── */}
@@ -806,45 +1014,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
 
         <AnimatePresence>
           {stopFx && (
-            <motion.div
-              key={`${stopFx.shopId}-${stopFx.nonce}`}
-              className="absolute inset-0 z-25 pointer-events-none"
-              initial={{ opacity: 1 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <motion.div
-                className="absolute rounded-full"
-                style={{
-                  width: 220,
-                  height: 220,
-                  right: CAR_RIGHT_OFFSET + 150,
-                  bottom: 80,
-                  background: "radial-gradient(circle, rgba(250,204,21,0.65) 0%, rgba(250,204,21,0.15) 45%, rgba(250,204,21,0) 72%)",
-                }}
-                initial={{ scale: 0.2, opacity: 0.4 }}
-                animate={{ scale: 1.8, opacity: 0 }}
-                transition={{ duration: 0.9, ease: "easeOut" }}
-              />
-              {Array.from({ length: 14 }).map((_, i) => (
-                <motion.span
-                  key={i}
-                  className="absolute text-2xl"
-                  style={{ right: CAR_RIGHT_OFFSET + 220, bottom: 140 }}
-                  initial={{ x: 0, y: 0, opacity: 1, scale: 0.8 }}
-                  animate={{
-                    x: Math.cos((i / 14) * Math.PI * 2) * 150,
-                    y: Math.sin((i / 14) * Math.PI * 2) * 70 - 50,
-                    opacity: 0,
-                    scale: 1.25,
-                    rotate: (i % 2 === 0 ? 1 : -1) * 160,
-                  }}
-                  transition={{ duration: 0.95, ease: "easeOut" }}
-                >
-                  {i % 3 === 0 ? "🎁" : i % 3 === 1 ? "✨" : "💛"}
-                </motion.span>
-              ))}
-            </motion.div>
+            <FireworksOverlay key={`${stopFx.shopId}-${stopFx.nonce}`} nonce={stopFx.nonce} />
           )}
         </AnimatePresence>
 
