@@ -586,6 +586,147 @@ function FinaleDialog({ collectedCount, shopIds, onClose }: {
   );
 }
 
+// ─── WelcomeOverlay ──────────────────────────────────────────────────────────
+function WelcomeOverlay({ onStart }: { onStart: () => void }) {
+  const steps = [
+    { title: "עולים על ההגה", desc: "לחצו על כפתור ההתחלה או במקלדת על מקש SPACE והתחילו בנסיעה" },
+    { title: "מנווטים בזהירות", desc: "סעו לאורך הכביש ותהנו מהנוף..." },
+    { title: "עוצרים ומרוויחים", desc: "זיהיתם חנות בצד הדרך? עצרו לידה בדיוק בזמן!" },
+    { title: "אוספים את המתנה", desc: "הצלחתם לעצור? בום! זכיתם במתנה דיגיטלית בלעדית שתקפיץ לכם את העסק." },
+  ];
+
+  const STEP_DURATION = 2200; // ms per step
+  const [phase, setPhase] = useState<"title" | "steps" | "final">("title");
+  const [stepIdx, setStepIdx] = useState(0);
+
+  useEffect(() => {
+    // After title shown (1.2s), start cycling steps
+    const t1 = window.setTimeout(() => setPhase("steps"), 1200);
+    return () => window.clearTimeout(t1);
+  }, []);
+
+  useEffect(() => {
+    if (phase !== "steps") return;
+    if (stepIdx < steps.length - 1) {
+      const t = window.setTimeout(() => setStepIdx(i => i + 1), STEP_DURATION);
+      return () => window.clearTimeout(t);
+    } else {
+      const t = window.setTimeout(() => setPhase("final"), STEP_DURATION);
+      return () => window.clearTimeout(t);
+    }
+  }, [phase, stepIdx]);
+
+  return (
+    <motion.div
+      className="absolute inset-0 z-50 flex items-center justify-start overflow-hidden pl-[18%] md:pl-[22%] pb-[10%]"
+      style={{ background: "transparent" }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, scale: 1.08, transition: { duration: 0.5, ease: "easeInOut" } }}
+    >
+      {/* sparkle stars */}
+      {[...Array(8)].map((_, i) => (
+        <motion.div key={`star-${i}`}
+          className="absolute text-yellow-300 pointer-events-none select-none"
+          style={{ left: `${10 + i * 11}%`, top: `${8 + (i % 3) * 18}%`, fontSize: 16 + (i % 3) * 8 }}
+          animate={{ opacity: [0, 1, 0], scale: [0.5, 1.3, 0.5], rotate: [0, 90, 0] }}
+          transition={{ duration: 1.8 + i * 0.3, repeat: Infinity, delay: i * 0.4 }}
+        >✦</motion.div>
+      ))}
+
+      <div className="relative max-w-xl w-full" dir="rtl">
+
+        {/* ── Title (always visible) ── */}
+        <motion.div className="text-center mb-4"
+          initial={{ opacity: 0, y: -30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, type: "spring", bounce: 0.4 }}
+        >
+          <h1 className="text-5xl md:text-7xl font-black tracking-tight leading-tight"
+            style={{ fontFamily: "'Heebo', sans-serif", color: "#1e1b4b" }}>
+            ברוכים הבאים למירוץ המתנות!
+          </h1>
+          <p className="text-2xl md:text-3xl font-bold mt-2"
+            style={{ fontFamily: "'Heebo', sans-serif", color: "#0f172a" }}>
+            מוכנים לצאת לדרך ולזכות בפרסים שווים?
+          </p>
+        </motion.div>
+
+        {/* ── Cycling step ── */}
+        {phase === "steps" && (
+          <div className="min-h-[120px] flex flex-col justify-center text-right mb-4">
+            <AnimatePresence mode="wait">
+              <motion.div key={stepIdx}
+                initial={{ opacity: 0, y: 40, scale: 0.92 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -30, scale: 0.95 }}
+                transition={{ duration: 0.45, ease: "easeOut" }}
+              >
+                <div className="text-4xl md:text-5xl font-black mb-2"
+                  style={{ fontFamily: "'Heebo', sans-serif", color: "#e11d48" }}>
+                  {steps[stepIdx].title}
+                </div>
+                <div className="text-xl md:text-2xl font-semibold"
+                  style={{ fontFamily: "'Heebo', sans-serif", color: "#1e40af" }}>
+                  {steps[stepIdx].desc}
+                </div>
+              </motion.div>
+            </AnimatePresence>
+            {/* dots */}
+            <div className="flex gap-2 mt-4 justify-end">
+              {steps.map((_, i) => (
+                <div key={i} className="rounded-full transition-all duration-300"
+                  style={{ width: i === stepIdx ? 22 : 8, height: 8, background: i === stepIdx ? "#e11d48" : "#cbd5e1" }} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Final screen after all steps ── */}
+        {phase === "final" && (
+          <motion.div className="text-right mb-4"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <p className="text-xl md:text-2xl font-black mb-1"
+              style={{ fontFamily: "'Heebo', sans-serif", color: "#b45309" }}>
+              הטיימר מפרגן לכם לשחק דקה אחת — נראה מה תספיקו לאסוף!
+            </p>
+            <p className="text-lg md:text-xl font-semibold"
+              style={{ fontFamily: "'Heebo', sans-serif", color: "#7c3aed" }}>
+              חגורות בטיחות? יש. יד על ההגה? יש. קדימה, צאו לדרך!
+            </p>
+
+            {/* ── Start button ── */}
+            <motion.div className="flex justify-center mt-5"
+              initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.3, type: "spring", bounce: 0.5 }}>
+              <motion.button
+                onClick={onStart}
+                className="relative px-14 py-4 text-2xl md:text-3xl font-black text-white rounded-full cursor-pointer overflow-hidden select-none"
+                style={{
+                  fontFamily: "'Heebo', sans-serif",
+                  background: "linear-gradient(90deg, #f59e0b, #ef4444, #8b5cf6, #10b981, #f59e0b)",
+                  backgroundSize: "300%",
+                  border: "3px solid rgba(255,255,255,0.3)",
+                  boxShadow: "0 0 40px rgba(139,92,246,0.6), 0 0 80px rgba(245,158,11,0.3)",
+                }}
+                animate={{ backgroundPositionX: ["0%", "300%"] }}
+                transition={{ backgroundPositionX: { duration: 3, repeat: Infinity, ease: "linear" } }}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                יאללה, צאו לדרך!
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
 // ─── FairLanding — Road Game ─────────────────────────────────────────────────
 function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   const [shops, setShops] = useState<Shop[]>([]);
@@ -595,6 +736,29 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   const [showFinale, setShowFinale] = useState(false);
   const [isDriving, setIsDriving] = useState(false);
   const [stopFx, setStopFx] = useState<{ shopId: string; nonce: number } | null>(null);
+  const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(true);
+  const showWelcomeRef = useRef(showWelcome);
+  useEffect(() => { showWelcomeRef.current = showWelcome; }, [showWelcome]);
+  const TIMER_TOTAL = 1 * 60;
+  const [timeLeft, setTimeLeft] = useState(TIMER_TOTAL);
+  const [timerStarted, setTimerStarted] = useState(false);
+
+  // Start timer on first drive
+  useEffect(() => {
+    if (isDriving && !timerStarted) setTimerStarted(true);
+  }, [isDriving, timerStarted]);
+
+  useEffect(() => {
+    if (!timerStarted || timeLeft <= 0) return;
+    const tid = window.setInterval(() => setTimeLeft(t => Math.max(0, t - 1)), 1000);
+    return () => window.clearInterval(tid);
+  }, [timerStarted, timeLeft]);
+
+  const timerMins = String(Math.floor(timeLeft / 60)).padStart(2, "0");
+  const timerSecs = String(timeLeft % 60).padStart(2, "0");
+  const timerPct = timeLeft / TIMER_TOTAL;
+  const timerColor = "#ef4444";
   const gameRef = useRef<HTMLDivElement>(null);
   const lastControlAtRef = useRef(0);
   // Accumulated driving ms on the current shop leg (resets on each shop advance)
@@ -745,6 +909,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
       if (key === "x") setDriveState(false);
       if (event.key === " ") {
         event.preventDefault();
+        if (showWelcomeRef.current) { setShowWelcome(false); return; }
         setDriveState(!isDriving);
       }
     };
@@ -794,12 +959,6 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
       <div className="absolute top-0 left-0 right-0 z-30 flex justify-between items-center px-5 py-3 pointer-events-none">
         <motion.div className="flex items-center gap-3 pointer-events-auto"
           initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }}>
-          <span className="text-2xl md:text-3xl font-display text-white drop-shadow-lg" dir="rtl">
-            🎁 מפליקצית fairgifts
-          </span>
-          <Badge className="bg-white/20 text-white border-white/30 backdrop-blur" dir="rtl">
-            {shops.length} מתנות
-          </Badge>
         </motion.div>
         <Button variant="outline" size="sm" onClick={onOpenDashboard}
           className="pointer-events-auto border-white/70 text-white hover:bg-white/20 backdrop-blur rounded-full" dir="rtl">
@@ -858,7 +1017,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
           ))}
 
           {/* shops — laid right-to-left so shop 0 is rightmost (first to arrive) */}
-          {shops.map((shop, i) => (
+          {!showWelcome && shops.map((shop, i) => (
             <div key={shop.id} className="absolute flex flex-col items-center"
               style={{ left: totalWorldW - ROAD_START - (i + 1) * SHOP_SPACING + shopXOffset(i) - 95, bottom: 96 }}>
               <ShopBuilding
@@ -1030,6 +1189,55 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
           </div>
         )}
 
+        {/* ── Timer ─────────────────────────────────────────────────────── */}
+        <motion.div
+          className="absolute z-30 pointer-events-none flex flex-col items-center"
+          style={{ top: 16, left: 24, transform: "none" }}
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          dir="rtl"
+        >
+          <div className="relative flex flex-col items-center gap-2">
+            {/* circular progress */}
+            <div className="relative" style={{ width: 120, height: 120 }}>
+              <svg width="120" height="120" style={{ transform: "rotate(-90deg)" }}>
+                <circle cx="60" cy="60" r="50" fill="rgba(0,0,0,0.35)" stroke="rgba(255,255,255,0.15)" strokeWidth="8" />
+                <motion.circle
+                  cx="60" cy="60" r="50"
+                  fill="none"
+                  stroke="#ef4444"
+                  strokeWidth="8"
+                  strokeLinecap="round"
+                  strokeDasharray={2 * Math.PI * 50}
+                  strokeDashoffset={2 * Math.PI * 50 * (1 - timerPct)}
+                  style={{ filter: "drop-shadow(0 0 10px #ef4444)" }}
+                  transition={{ duration: 0.8, ease: "easeInOut" }}
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-0">
+                <span className="text-[10px] text-red-300 font-semibold tracking-widest">דקה</span>
+                <AnimatePresence mode="popLayout">
+                  <motion.span
+                    key={timeLeft}
+                    className="font-display font-black leading-none"
+                    style={{ fontSize: 40, color: timeLeft <= 10 ? "#ff2020" : "#ef4444", textShadow: `0 0 ${timeLeft <= 10 ? 20 : 14}px #ef4444, 0 2px 8px rgba(0,0,0,0.7)` }}
+                    initial={{ opacity: 0, scale: 1.5, y: -8 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.6, y: 6 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                  >
+                    {timeLeft === 0 ? "🔴" : timeLeft}
+                  </motion.span>
+                </AnimatePresence>
+                <span className="text-[9px] text-white/50">
+                  {timeLeft === 0 ? "נגמר" : timerStarted ? "שניות" : "60"}
+                </span>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
         {/* ── Drive controls ─────────────────────────────────────────────── */}
         <div className="absolute z-30 left-1/2 -translate-x-1/2" style={{ bottom: 136 }} dir="rtl">
           <div className="bg-white/90 backdrop-blur-md rounded-2xl p-2 shadow-xl border border-white/70">
@@ -1067,19 +1275,26 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
             <p className="text-[11px] text-slate-500 mt-1 px-1 text-center">קיצורים: S לסע, X לעצור, Space להחלפה</p>
           </div>
         </div>
+
+        {/* ── Welcome overlay ──────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {showWelcome && (
+            <WelcomeOverlay onStart={() => setShowWelcome(false)} />
+          )}
+        </AnimatePresence>
       </div>
 
       {/* ── HUD — progress bar ─────────────────────────────────────────────── */}
-      <div className="bg-brand-primary text-white px-6 py-3 flex items-center justify-between" dir="rtl">
-        <div className="flex items-center gap-3">
-          <span className="font-bold text-sm">{collected.size} / {shops.length} מתנות נאספו</span>
+      <div className="bg-brand-primary text-white px-4 py-3 flex items-center justify-between gap-3" dir="rtl">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <span className="font-bold text-sm whitespace-nowrap">{collected.size} / {shops.length} מתנות נאספו</span>
           {collected.size === shops.length && shops.length > 0 && (
             <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-yellow-400 font-bold text-sm">
               🎉 כל המתנות נאספו!
             </motion.span>
           )}
         </div>
-        <div className="flex gap-2 flex-wrap justify-end">
+        <div className="flex gap-2 flex-wrap justify-end flex-1">
           {shops.map((shop, i) => (
             <motion.div key={shop.id}
               className={`w-4 h-4 rounded-full border-2 transition-colors ${
@@ -1092,7 +1307,57 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
             />
           ))}
         </div>
+        {collected.size > 0 && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            onClick={() => { setIsDriving(false); setShowCheckoutConfirm(true); }}
+            className="flex-shrink-0 bg-yellow-400 hover:bg-yellow-300 text-stone-900 font-extrabold text-sm px-4 py-2 rounded-full shadow-lg transition-all whitespace-nowrap"
+            dir="rtl"
+          >
+            🛒 יאלה קחי אותי למשלחן
+          </motion.button>
+        )}
       </div>
+
+      {/* ── Checkout confirm dialog ───────────────────────────────────────── */}
+      <AnimatePresence>
+        {showCheckoutConfirm && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)" }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full mx-4 text-center"
+              initial={{ scale: 0.8, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.8, y: 30 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              dir="rtl"
+            >
+              <div className="text-5xl mb-4">🤔</div>
+              <h2 className="text-2xl font-extrabold text-stone-800 mb-2">בטוחה שאת לא רוצה עוד מתנות?</h2>
+              <p className="text-stone-500 text-sm mb-6">נאספת {collected.size} מתנות עד כאן 🎁</p>
+              <div className="flex flex-col gap-3">
+                <motion.button
+                  onClick={() => { setShowCheckoutConfirm(false); setShowFinale(true); }}
+                  className="w-full py-4 rounded-2xl font-extrabold text-white text-base shadow-lg"
+                  style={{ background: "linear-gradient(90deg, #7c3aed, #db2777)" }}
+                  whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                >
+                  📦 תארזי לי את המתנות הביתה!
+                </motion.button>
+                <motion.button
+                  onClick={() => setShowCheckoutConfirm(false)}
+                  className="w-full py-3 rounded-2xl font-bold text-stone-700 bg-stone-100 hover:bg-stone-200 text-sm transition-colors"
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                >
+                  🚗 ברור שכן — תחזירי אותי לכביש!
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Finale popup ──────────────────────────────────────────────────── */}
       <AnimatePresence>
