@@ -25,6 +25,10 @@ const WORLD_MOVE_INTERVAL_MS = Math.round(WORLD_MOVE_DURATION_SEC * 1000);
 const ROAD_DASH_SHIFT_PX = 80;
 const ROAD_DASH_DURATION_SEC = ROAD_DASH_SHIFT_PX / TRAVEL_SPEED_PX_PER_SEC;
 
+// Speed levels: multipliers × base speed (1 = 240 px/s)
+const SPEED_LEVELS = [0.4, 1, 2, 3.5, 6] as const;
+const SPEED_KMH    = [40, 60, 90, 120, 160] as const;
+
 // ─── Cloud ────────────────────────────────────────────────────────────────────
 function Cloud({ xPct, yPct, w, dur }: { xPct: number; yPct: number; w: number; dur: number }) {
   return (
@@ -591,6 +595,7 @@ function WelcomeOverlay({ onStart }: { onStart: () => void }) {
   const steps = [
     { title: "עולים על ההגה", desc: "לחצו על כפתור ההתחלה או במקלדת על מקש SPACE והתחילו בנסיעה" },
     { title: "מנווטים בזהירות", desc: "סעו לאורך הכביש ותהנו מהנוף..." },
+    { title: "מכווננים את הגז", desc: "השתמשו במד המהירות שמאלה כדי להגביר ולהאט — חיצי ↑↓ במקלדת או לחיצה על +/−" },
     { title: "עוצרים ומרוויחים", desc: "זיהיתם חנות בצד הדרך? עצרו לידה בדיוק בזמן!" },
     { title: "אוספים את המתנה", desc: "הצלחתם לעצור? בום! זכיתם במתנה דיגיטלית בלעדית שתקפיץ לכם את העסק." },
   ];
@@ -727,6 +732,107 @@ function WelcomeOverlay({ onStart }: { onStart: () => void }) {
   );
 }
 
+// ─── Speedometer ─────────────────────────────────────────────────────────────
+function Speedometer({ speed, onSpeedChange }: { speed: number; onSpeedChange: (s: number) => void }) {
+  const cx = 60, cy = 66, r = 50;
+  const fullArcLen = Math.PI * r;
+  const filledLen = ((speed - 1) / 4) * fullArcLen;
+  // Needle: 180° at speed 1 (left) → 0° at speed 5 (right)
+  const needleAngleDeg = 180 - ((speed - 1) / 4) * 180;
+  const needleRad = (needleAngleDeg * Math.PI) / 180;
+  const nr = r * 0.74;
+  const nx = cx + nr * Math.cos(needleRad);
+  const ny = cy - nr * Math.sin(needleRad);
+  const ticks = [0, 1, 2, 3, 4].map(i => {
+    const aRad = (180 - (i / 4) * 180) * Math.PI / 180;
+    return {
+      x1: cx + (r - 3) * Math.cos(aRad), y1: cy - (r - 3) * Math.sin(aRad),
+      x2: cx + (r + 5) * Math.cos(aRad), y2: cy - (r + 5) * Math.sin(aRad),
+      active: i === speed - 1,
+    };
+  });
+  const colors = ["#22c55e", "#84cc16", "#facc15", "#f97316", "#ef4444"];
+  const col = colors[speed - 1];
+  return (
+    <div className="flex flex-col items-center justify-between select-none" style={{
+      background: "rgba(8,10,22,0.80)", backdropFilter: "blur(14px)",
+      border: "1px solid rgba(255,255,255,0.13)", borderRadius: 20,
+      padding: "8px 10px 8px",
+      boxShadow: "0 4px 28px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.07)",
+      width: 144, height: 144,
+    }}>
+      <svg viewBox="0 0 120 72" width="120" height="72" overflow="visible">
+        <defs>
+          <linearGradient id="sgGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%"   stopColor="#22c55e" />
+            <stop offset="40%"  stopColor="#facc15" />
+            <stop offset="100%" stopColor="#ef4444" />
+          </linearGradient>
+        </defs>
+        {/* background arc */}
+        <path d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
+          fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="7" strokeLinecap="round" />
+        {/* filled arc */}
+        <path d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
+          fill="none" stroke="url(#sgGrad)" strokeWidth="7" strokeLinecap="round"
+          strokeDasharray={`${filledLen} ${fullArcLen + 10}`}
+          style={{ transition: "stroke-dasharray 0.35s ease" }} />
+        {/* tick marks */}
+        {ticks.map((t, i) => (
+          <line key={i} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2}
+            stroke={t.active ? "white" : "rgba(255,255,255,0.35)"}
+            strokeWidth={t.active ? 2.5 : 1.5} />
+        ))}
+        {/* needle */}
+        <line x1={cx} y1={cy} x2={nx} y2={ny}
+          stroke={col} strokeWidth="2.5" strokeLinecap="round"
+          style={{
+            filter: `drop-shadow(0 0 5px ${col})`,
+            transition: "all 0.4s cubic-bezier(0.34,1.56,0.64,1)",
+          }} />
+        {/* center cap */}
+        <circle cx={cx} cy={cy} r="4.5" fill="#1e293b" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" />
+        {/* km/h value */}
+        <text x={cx} y={cy - 18} textAnchor="middle" fill={col} fontSize="15" fontWeight="bold"
+          style={{ filter: `drop-shadow(0 0 7px ${col})`, transition: "fill 0.3s" }}>
+          {SPEED_KMH[speed - 1]}
+        </text>
+        <text x={cx} y={cy - 6} textAnchor="middle" fill="rgba(255,255,255,0.45)" fontSize="7">km/h</text>
+      </svg>
+      {/* ± controls */}
+      <div className="flex items-center gap-2">
+        <button onClick={() => onSpeedChange(Math.max(1, speed - 1))} disabled={speed <= 1}
+          style={{
+            width: 30, height: 30, borderRadius: "50%", fontSize: 18, fontWeight: "bold",
+            background: speed <= 1 ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.14)",
+            border: "1px solid rgba(255,255,255,0.18)", color: "white",
+            opacity: speed <= 1 ? 0.3 : 1, cursor: speed <= 1 ? "not-allowed" : "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s",
+          }}>−</button>
+        <div style={{ display: "flex", gap: 4 }}>
+          {[0, 1, 2, 3, 4].map(i => (
+            <div key={i} style={{
+              width: 6, height: 6, borderRadius: "50%",
+              background: i < speed ? col : "rgba(255,255,255,0.18)",
+              boxShadow: i === speed - 1 ? `0 0 7px ${col}` : "none",
+              transition: "all 0.25s",
+            }} />
+          ))}
+        </div>
+        <button onClick={() => onSpeedChange(Math.min(5, speed + 1))} disabled={speed >= 5}
+          style={{
+            width: 30, height: 30, borderRadius: "50%", fontSize: 18, fontWeight: "bold",
+            background: speed >= 5 ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.14)",
+            border: "1px solid rgba(255,255,255,0.18)", color: "white",
+            opacity: speed >= 5 ? 0.3 : 1, cursor: speed >= 5 ? "not-allowed" : "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s",
+          }}>+</button>
+      </div>
+      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", letterSpacing: "0.05em" }}>↑↓ מהירות</div>
+    </div>
+  );
+}
+
 // ─── FairLanding — Road Game ─────────────────────────────────────────────────
 function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   const [shops, setShops] = useState<Shop[]>([]);
@@ -761,14 +867,18 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   const timerColor = "#ef4444";
   const gameRef = useRef<HTMLDivElement>(null);
   const lastControlAtRef = useRef(0);
-  // Accumulated driving ms on the current shop leg (resets on each shop advance)
-  const legAccumulatedMsRef = useRef(0);
-  // Wall-clock time when the current drive session started (null = not driving)
-  const legDriveStartRef = useRef<number | null>(null);
+  // Speed: 1-5. Default = level 2 (1× base speed)
+  const [speed, setSpeed] = useState(2);
+  const speedRef = useRef(speed);
+  useEffect(() => { speedRef.current = speed; }, [speed]);
+  // base-speed-equivalent ms driven on the current shop leg (resets on each advance)
+  const legEquivMsRef = useRef(0);
+  // wall-clock time when the current drive segment started (null = not driving)
+  const legSegStartRef = useRef<number | null>(null);
+  // speed multiplier that was active when the current segment started
+  const legSegSpeedRef = useRef<number>(SPEED_LEVELS[1]);
   const worldControls = useAnimationControls();
-  const dashControls = useAnimationControls();
   const wasDrivingRef = useRef(false);
-  const wasDashDrivingRef = useRef(false);
   const collectedRef = useRef(collected);
   const isDrivingRef = useRef(isDriving);
   const shopsRef = useRef(shops);
@@ -778,6 +888,17 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   useEffect(() => { isDrivingRef.current = isDriving; }, [isDriving]);
   useEffect(() => { shopsRef.current = shops; }, [shops]);
   useEffect(() => { currentIdxRef.current = currentIdx; }, [currentIdx]);
+
+  // Commit the running segment into equiv ms, then switch speed
+  const changeSpeed = (newSpd: number) => {
+    if (newSpd < 1 || newSpd > 5) return;
+    if (isDrivingRef.current && legSegStartRef.current !== null) {
+      legEquivMsRef.current += (Date.now() - legSegStartRef.current) * legSegSpeedRef.current;
+      legSegStartRef.current = Date.now();
+      legSegSpeedRef.current = SPEED_LEVELS[newSpd - 1];
+    }
+    setSpeed(newSpd);
+  };
 
   const collectGiftOnStop = (shop: Shop) => {
     if (collectedRef.current.has(shop.id)) return;
@@ -803,11 +924,11 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
     lastControlAtRef.current = now;
 
     if (!nextState && isDrivingRef.current) {
-      // Total ms driven on this leg = accumulated + time since this drive session started
-      const totalDriven = legAccumulatedMsRef.current +
-        (legDriveStartRef.current !== null ? Date.now() - legDriveStartRef.current : 0);
-      // Allow collection after 50% of the leg has been driven continuously
-      if (totalDriven >= WORLD_MOVE_DURATION_SEC * 500) {
+      // Total equiv ms driven = accumulated + current segment at its speed
+      const equivDriven = legEquivMsRef.current +
+        (legSegStartRef.current !== null ? (Date.now() - legSegStartRef.current) * legSegSpeedRef.current : 0);
+      // Allow collection after 50% of the leg (in base-speed time)
+      if (equivDriven >= WORLD_MOVE_INTERVAL_MS * 0.5) {
         const shop = shopsRef.current[currentIdxRef.current - 1];
         if (shop) collectGiftOnStop(shop);
       }
@@ -838,22 +959,24 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
     });
   }, []);
 
-  // Auto-drive — advances one shop per WORLD_MOVE_INTERVAL_MS of ACTUAL drive time.
-  // Pausing/resuming does not reset the countdown for the current leg.
+  // Auto-drive — advances one shop per full leg at current speed.
+  // Pausing/resuming/changing speed all preserve the exact leg progress.
   useEffect(() => {
     if (!isDriving || shops.length === 0 || showFinale) return;
 
-    legDriveStartRef.current = Date.now();
+    const speedMult = SPEED_LEVELS[speed - 1];
+    legSegStartRef.current = Date.now();
+    legSegSpeedRef.current = speedMult;
     let active = true;
     let nextTid: number;
 
     const advance = () => {
       if (!active) return;
-      // Reset leg accumulator and mark new leg start
-      legAccumulatedMsRef.current = 0;
-      legDriveStartRef.current = Date.now();
+      // Reset leg and mark new segment
+      legEquivMsRef.current = 0;
+      legSegStartRef.current = Date.now();
+      legSegSpeedRef.current = SPEED_LEVELS[speedRef.current - 1];
       setCurrentIdx(prev => {
-        // Allow currentIdx to reach shops.length so the last shop (N-1) can arrive
         if (prev >= shops.length) {
           setIsDriving(false);
           setTimeout(() => setShowFinale(true), 1200);
@@ -864,27 +987,28 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
         return prev + 1;
       });
       if (active) {
-        nextTid = window.setTimeout(advance, WORLD_MOVE_INTERVAL_MS);
+        // Schedule next advance at current speed (use ref for latest speed)
+        nextTid = window.setTimeout(advance, WORLD_MOVE_INTERVAL_MS / SPEED_LEVELS[speedRef.current - 1]);
       }
     };
 
-    // First drive (accumulated=0): advance immediately so first house moves at once.
-    // Resume after pause: wait only the leftover portion of the current leg.
-    const remaining = legAccumulatedMsRef.current > 0
-      ? Math.max(50, WORLD_MOVE_INTERVAL_MS - legAccumulatedMsRef.current)
+    // First start (equiv=0): fire immediately; resume: wait remaining equiv / speed
+    const remainingEquiv = legEquivMsRef.current > 0
+      ? Math.max(50, WORLD_MOVE_INTERVAL_MS - legEquivMsRef.current)
       : 0;
-    nextTid = window.setTimeout(advance, remaining);
+    const remainingReal = remainingEquiv > 0 ? remainingEquiv / speedMult : 0;
+    nextTid = window.setTimeout(advance, remainingReal);
 
     return () => {
       active = false;
       window.clearTimeout(nextTid);
-      // Accumulate drive time when stopping so resume picks up where we left off
-      if (legDriveStartRef.current !== null) {
-        legAccumulatedMsRef.current += Date.now() - legDriveStartRef.current;
-        legDriveStartRef.current = null;
+      // Commit elapsed equiv ms when stopping
+      if (legSegStartRef.current !== null) {
+        legEquivMsRef.current += (Date.now() - legSegStartRef.current) * legSegSpeedRef.current;
+        legSegStartRef.current = null;
       }
     };
-  }, [isDriving, shops.length, showFinale]);
+  }, [isDriving, shops.length, showFinale, speed]);
 
 
   useEffect(() => {
@@ -907,6 +1031,8 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
       const key = event.key.toLowerCase();
       if (key === "s") setDriveState(true);
       if (key === "x") setDriveState(false);
+      if (event.key === "ArrowUp")   { event.preventDefault(); changeSpeed(Math.min(5, speedRef.current + 1)); }
+      if (event.key === "ArrowDown") { event.preventDefault(); changeSpeed(Math.max(1, speedRef.current - 1)); }
       if (event.key === " ") {
         event.preventDefault();
         if (showWelcomeRef.current) { setShowWelcome(false); return; }
@@ -920,9 +1046,15 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
 
   useEffect(() => {
     if (isDriving) {
+      // Remaining real seconds = remaining equiv ms / current speed multiplier
+      const speedMult = SPEED_LEVELS[speed - 1];
+      const remainingEquiv = legEquivMsRef.current > 0
+        ? Math.max(50, WORLD_MOVE_INTERVAL_MS - legEquivMsRef.current)
+        : WORLD_MOVE_INTERVAL_MS;
+      const durationS = Math.max(0.05, remainingEquiv / speedMult / 1000);
       worldControls.start({
         x: worldX,
-        transition: { duration: WORLD_MOVE_DURATION_SEC, ease: "linear" },
+        transition: { duration: durationS, ease: "linear" },
       });
     } else if (wasDrivingRef.current) {
       worldControls.stop();
@@ -931,22 +1063,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
     }
 
     wasDrivingRef.current = isDriving;
-  }, [isDriving, worldX, worldControls]);
-
-  useEffect(() => {
-    if (isDriving) {
-      dashControls.start({
-        backgroundPositionX: [0, ROAD_DASH_SHIFT_PX],
-        transition: { repeat: Infinity, duration: ROAD_DASH_DURATION_SEC, ease: "linear" },
-      });
-    } else if (wasDashDrivingRef.current) {
-      dashControls.stop();
-    } else {
-      dashControls.set({ backgroundPositionX: 0 });
-    }
-
-    wasDashDrivingRef.current = isDriving;
-  }, [isDriving, dashControls]);
+  }, [isDriving, worldX, worldControls, speed]);
 
   const totalWorldW = ROAD_START + (shops.length + 2) * SHOP_SPACING;
   // currentIdx=N means shop N-1 has arrived at the car
@@ -1059,8 +1176,8 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
           {/* edge lines */}
           <div className="absolute top-0 left-0 right-0 h-2 bg-gray-500" />
           <div className="absolute bottom-0 left-0 right-0 h-2 bg-gray-500" />
-            {/* centre dashes */}
-            <motion.div
+            {/* centre dashes — CSS animation so play-state resumes from exact position */}
+            <div
               className="absolute inset-x-0 rounded"
               style={{
                 top: "50%",
@@ -1068,8 +1185,13 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
                 height: 6,
                 backgroundImage:
                   "repeating-linear-gradient(to right, #facc15 0 44px, transparent 44px 80px)",
+                backgroundSize: `${ROAD_DASH_SHIFT_PX}px 6px`,
+                animationName: "roadDash",
+                animationDuration: `${ROAD_DASH_DURATION_SEC / SPEED_LEVELS[speed - 1]}s`,
+                animationTimingFunction: "linear",
+                animationIterationCount: "infinite",
+                animationPlayState: isDriving ? "running" : "paused",
               }}
-              animate={dashControls}
             />
         </div>
 
@@ -1189,39 +1311,54 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
           </div>
         )}
 
-        {/* ── Timer ─────────────────────────────────────────────────────── */}
-        <motion.div
-          className="absolute z-30 pointer-events-none flex flex-col items-center"
-          style={{ top: 16, left: 24, transform: "none" }}
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          dir="rtl"
+        {/* ── Left side panel: Timer + Speedometer + Checkout ──────────── */}
+        <div
+          className="absolute z-30 flex flex-col items-center py-4 px-3"
+          style={{
+            left: 0, top: 0, bottom: 0, width: 168,
+            background: "rgba(8,10,22,0.72)",
+            backdropFilter: "blur(18px)",
+            borderRight: "1px solid rgba(255,255,255,0.10)",
+            boxShadow: "4px 0 32px rgba(0,0,0,0.45)",
+          }}
         >
-          <div className="relative flex flex-col items-center gap-2">
-            {/* circular progress */}
-            <div className="relative" style={{ width: 120, height: 120 }}>
-              <svg width="120" height="120" style={{ transform: "rotate(-90deg)" }}>
-                <circle cx="60" cy="60" r="50" fill="rgba(0,0,0,0.35)" stroke="rgba(255,255,255,0.15)" strokeWidth="8" />
+          {/* ─ Squares ────────────────────────────────────────────────── */}
+          <div className="flex flex-col items-center gap-3 mt-auto mb-3">
+          {/* ─ Timer ──────────────────────────────────────────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="flex flex-col items-center justify-center"
+            style={{
+              width: 144, height: 144,
+              background: "rgba(8,10,22,0.80)", backdropFilter: "blur(14px)",
+              border: "1px solid rgba(255,255,255,0.13)", borderRadius: 20,
+              boxShadow: "0 4px 28px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.07)",
+            }}
+          >
+            <span className="text-[10px] text-white/40 font-semibold tracking-widest uppercase mb-1">זמן</span>
+            <div className="relative" style={{ width: 100, height: 100 }}>
+              <svg width="100" height="100" style={{ transform: "rotate(-90deg)" }}>
+                <circle cx="50" cy="50" r="42" fill="rgba(0,0,0,0.35)" stroke="rgba(255,255,255,0.1)" strokeWidth="7" />
                 <motion.circle
-                  cx="60" cy="60" r="50"
+                  cx="50" cy="50" r="42"
                   fill="none"
                   stroke="#ef4444"
-                  strokeWidth="8"
+                  strokeWidth="7"
                   strokeLinecap="round"
-                  strokeDasharray={2 * Math.PI * 50}
-                  strokeDashoffset={2 * Math.PI * 50 * (1 - timerPct)}
+                  strokeDasharray={2 * Math.PI * 42}
+                  strokeDashoffset={2 * Math.PI * 42 * (1 - timerPct)}
                   style={{ filter: "drop-shadow(0 0 10px #ef4444)" }}
                   transition={{ duration: 0.8, ease: "easeInOut" }}
                 />
               </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-0">
-                <span className="text-[10px] text-red-300 font-semibold tracking-widest">דקה</span>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <AnimatePresence mode="popLayout">
                   <motion.span
                     key={timeLeft}
                     className="font-display font-black leading-none"
-                    style={{ fontSize: 40, color: timeLeft <= 10 ? "#ff2020" : "#ef4444", textShadow: `0 0 ${timeLeft <= 10 ? 20 : 14}px #ef4444, 0 2px 8px rgba(0,0,0,0.7)` }}
+                    style={{ fontSize: 34, color: timeLeft <= 10 ? "#ff2020" : "#ef4444", textShadow: `0 0 ${timeLeft <= 10 ? 20 : 14}px #ef4444, 0 2px 8px rgba(0,0,0,0.7)` }}
                     initial={{ opacity: 0, scale: 1.5, y: -8 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.6, y: 6 }}
@@ -1230,13 +1367,73 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
                     {timeLeft === 0 ? "🔴" : timeLeft}
                   </motion.span>
                 </AnimatePresence>
-                <span className="text-[9px] text-white/50">
-                  {timeLeft === 0 ? "נגמר" : timerStarted ? "שניות" : "60"}
-                </span>
+                <span className="text-[9px] text-white/40">{timeLeft === 0 ? "נגמר" : timerStarted ? "שניות" : "60"}</span>
               </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+
+          {/* ─ Speedometer ────────────────────────────────────────────── */}
+          <Speedometer speed={speed} onSpeedChange={changeSpeed} />
+
+          {/* ─ Collected counter ──────────────────────────────────────── */}
+          <motion.div
+            dir="rtl"
+            className="flex flex-col items-center justify-center gap-1 rounded-2xl"
+            style={{
+              width: 144, height: 144,
+              background: collected.size > 0
+                ? "linear-gradient(135deg, rgba(250,204,21,0.18) 0%, rgba(251,146,60,0.18) 100%)"
+                : "rgba(8,10,22,0.80)",
+              border: collected.size > 0
+                ? "1.5px solid rgba(250,204,21,0.45)"
+                : "1px solid rgba(255,255,255,0.13)",
+              boxShadow: collected.size > 0 ? "0 2px 16px rgba(250,204,21,0.18)" : "0 4px 28px rgba(0,0,0,0.65)",
+              backdropFilter: "blur(14px)",
+            }}
+            animate={collected.size > 0 ? { scale: [1, 1.06, 1] } : {}}
+            transition={{ duration: 0.4 }}
+          >
+            <span style={{ fontSize: 26, lineHeight: 1 }}>🎁</span>
+            <span className="font-black leading-none" style={{ fontSize: 28, color: collected.size > 0 ? "#facc15" : "rgba(255,255,255,0.2)", textShadow: collected.size > 0 ? "0 0 12px rgba(250,204,21,0.6)" : "none" }}>
+              {collected.size}
+            </span>
+            <span className="text-[10px] font-semibold tracking-wide" style={{ color: "rgba(255,255,255,0.4)" }}>
+              פרסים נאספו
+            </span>
+          </motion.div>
+
+          {/* ─ Checkout button ────────────────────────────────────────── */}
+          <motion.button
+            onClick={() => { if (collected.size > 0) { setIsDriving(false); setShowCheckoutConfirm(true); } }}
+            disabled={collected.size === 0}
+            dir="rtl"
+            className="flex flex-col items-center justify-center gap-2 rounded-2xl font-extrabold transition-all"
+            style={{
+              width: 144, height: 144,
+              background: collected.size > 0
+                ? "linear-gradient(135deg, #7c3aed 0%, #db2777 100%)"
+                : "rgba(255,255,255,0.06)",
+              border: collected.size > 0
+                ? "1.5px solid rgba(255,255,255,0.25)"
+                : "1.5px solid rgba(255,255,255,0.09)",
+              boxShadow: collected.size > 0 ? "0 4px 24px rgba(124,58,237,0.45)" : "none",
+              color: collected.size > 0 ? "white" : "rgba(255,255,255,0.22)",
+              opacity: collected.size === 0 ? 0.5 : 1,
+              cursor: collected.size === 0 ? "not-allowed" : "pointer",
+            }}
+            whileHover={collected.size > 0 ? { scale: 1.05 } : {}}
+            whileTap={collected.size > 0 ? { scale: 0.95 } : {}}
+          >
+            <span style={{ fontSize: 34 }}>🛒</span>
+            <span className="text-center leading-tight" style={{ fontSize: 11 }}>קחי אותי<br />למשלוחן</span>
+            {collected.size > 0 && (
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: "rgba(255,255,255,0.25)" }}>
+                {collected.size} מתנות
+              </span>
+            )}
+          </motion.button>
+          </div>{/* end squares wrapper */}
+        </div>{/* end left panel */}
 
         {/* ── Drive controls ─────────────────────────────────────────────── */}
         <div className="absolute z-30 left-1/2 -translate-x-1/2" style={{ bottom: 136 }} dir="rtl">

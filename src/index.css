@@ -25,6 +25,11 @@
   @apply transition-all duration-300 hover:-translate-y-2 hover:shadow-xl;
 }
 
+@keyframes roadDash {
+  from { background-position-x: 0px; }
+  to   { background-position-x: 80px; }
+}
+
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
