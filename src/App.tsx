@@ -844,6 +844,12 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   const [stopFx, setStopFx] = useState<{ shopId: string; nonce: number } | null>(null);
   const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [showBizPopup, setShowBizPopup] = useState(false);
+  const [emailCopied, setEmailCopied] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setShowBizPopup(true), 10000);
+    return () => window.clearTimeout(t);
+  }, []);
   const showWelcomeRef = useRef(showWelcome);
   useEffect(() => { showWelcomeRef.current = showWelcome; }, [showWelcome]);
   const TIMER_TOTAL = 1 * 60;
@@ -1082,6 +1088,74 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
           אני בעלת עסק
         </Button>
       </div>
+
+      {/* ── Biz popup modal ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showBizPopup && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-end justify-end pointer-events-auto"
+            style={{ background: "transparent", pointerEvents: "none" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="relative rounded-3xl shadow-2xl px-8 py-10 text-center pointer-events-auto"
+              style={{
+                background: "linear-gradient(135deg, #4c1d95 0%, #7c3aed 45%, #db2777 100%)",
+                border: "2px solid rgba(255,255,255,0.25)",
+                maxWidth: 380,
+                width: "calc(100% - 40px)",
+                margin: "0 20px 80px 0",
+              }}
+              initial={{ scale: 0.8, opacity: 0, y: 40 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.85, opacity: 0, y: 20 }}
+              transition={{ type: "spring", damping: 20, stiffness: 260 }}
+              dir="rtl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setShowBizPopup(false)}
+                className="absolute top-4 left-4 text-white/60 hover:text-white text-2xl leading-none font-bold"
+                aria-label="סגור"
+              >×</button>
+
+              <div className="text-5xl mb-4">🎁</div>
+
+              <h2 className="text-white font-extrabold text-2xl mb-2 leading-snug">
+                היריד רק דמה
+              </h2>
+              <p className="text-white/80 text-base mb-1">עדיין לא פועל</p>
+
+              <div className="my-6 h-px bg-white/20" />
+
+              <p className="text-white font-bold text-lg mb-1">בעל עסק ורוצה להשתתף</p>
+              <p className="text-white/90 text-base mb-6">ולהרוויח מלא לידים?</p>
+
+              <p className="text-white/80 text-sm mb-3">פנה אלי</p>
+
+              <div
+                className="flex items-center justify-between rounded-2xl px-4 py-3 cursor-pointer"
+                style={{ background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.35)" }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText("d0527181611@gmail.com");
+                  setEmailCopied(true);
+                  setTimeout(() => setEmailCopied(false), 2000);
+                }}
+              >
+                <span className="text-white font-mono text-base">d0527181611@gmail.com</span>
+                {emailCopied && (
+                  <span className="text-white/70 text-xs mr-3">✓ הועתק!</span>
+                )}
+              </div>
+
+              <p className="text-yellow-300 font-extrabold text-base mt-6">מהרו — המקום כמעט נגמר! 🔥</p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Game canvas ────────────────────────────────────────────────────── */}
       <div ref={gameRef} className="relative flex-1 overflow-hidden" style={{ minHeight: 540 }}>
