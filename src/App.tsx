@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "./lib/AuthContext";
 import { auth, db } from "./lib/firebase";
 import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
-import { collection, addDoc, query, onSnapshot, serverTimestamp, where } from "firebase/firestore";
+import { collection, addDoc, query, onSnapshot, getDocs, serverTimestamp, where } from "firebase/firestore";
 import { Shop, Lead } from "./types";
 import { toast } from "sonner";
 
@@ -959,7 +959,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
 
   useEffect(() => {
     const q = query(collection(db, "fairs", "main_fair", "shops"));
-    return onSnapshot(q, snap => {
+    getDocs(q).then(snap => {
       const liveShops = snap.docs.map(d => ({ id: d.id, ...d.data() } as Shop));
       setShops(liveShops.length > 0 ? liveShops : DEMO_SHOPS);
     });
@@ -1656,14 +1656,16 @@ function BusinessDashboard({ onBack }: { onBack: () => void }) {
     
     // Fetch user's shop in this fair
     const q = query(collection(db, "fairs", "main_fair", "shops"), where("businessId", "==", user.uid));
+    let unsubLeads: (() => void) | null = null;
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
         const foundShop = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Shop;
         setShop(foundShop);
 
-        // Fetch leads for this shop
+        // Unsubscribe previous leads listener before creating a new one
+        if (unsubLeads) unsubLeads();
         const leadsQ = query(collection(db, "fairs", "main_fair", "shops", foundShop.id, "leads"));
-        onSnapshot(leadsQ, (leadsSnapshot) => {
+        unsubLeads = onSnapshot(leadsQ, (leadsSnapshot) => {
           setLeads(leadsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lead)));
         });
       } else {
@@ -1671,7 +1673,10 @@ function BusinessDashboard({ onBack }: { onBack: () => void }) {
       }
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      if (unsubLeads) unsubLeads();
+    };
   }, [user]);
 
   const handleCreateShop = async (e: React.FormEvent<HTMLFormElement>) => {

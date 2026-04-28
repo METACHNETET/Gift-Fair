@@ -19,7 +19,7 @@ export default defineConfig(({mode}) => {
         output: {
           manualChunks: {
             'vendor-react': ['react', 'react-dom'],
-            'vendor-firebase': ['firebase'],
+            'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
             'vendor-motion': ['motion'],
             'vendor-genai': ['@google/genai'],
             'vendor-ui': ['lucide-react', 'sonner', '@base-ui/react'],
