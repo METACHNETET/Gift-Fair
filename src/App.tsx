@@ -426,6 +426,7 @@ function GiftClaimDialog({ shop, onClose, onClaimed }: {
 function FinaleDialog({ collectedCount, shopIds, onClose }: {
   collectedCount: number; shopIds: string[]; onClose: () => void;
 }) {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [sent, setSent] = useState(false);
@@ -437,11 +438,25 @@ function FinaleDialog({ collectedCount, shopIds, onClose }: {
     e.preventDefault();
     setBusy(true);
     try {
+      const claimedAt = serverTimestamp();
+      // Save summary to finale_leads
       await addDoc(collection(db, "fairs", "main_fair", "finale_leads"), {
+        name,
         email,
         shopIds,
-        claimedAt: serverTimestamp(),
+        claimedAt,
       });
+      // Save a lead in each collected shop so business owners see the data
+      await Promise.all(
+        shopIds.map((shopId) =>
+          addDoc(collection(db, "fairs", "main_fair", "shops", shopId, "leads"), {
+            name,
+            email,
+            shopId,
+            claimedAt,
+          })
+        )
+      );
       setSent(true);
     } catch {
       toast.error("שגיאה קטנה", { description: "אנא נסי שנית." });
@@ -525,6 +540,15 @@ function FinaleDialog({ collectedCount, shopIds, onClose }: {
               </p>
 
               <form onSubmit={handleSend} className="space-y-4">
+                <Input
+                  required
+                  type="text"
+                  placeholder="השם שלך"
+                  className="rounded-xl text-center text-base py-6 border-2 border-violet-200 focus:border-violet-500"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  dir="rtl"
+                />
                 <Input
                   required
                   type="email"
