@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "./lib/AuthContext";
 import { auth, db } from "./lib/firebase";
 import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
-import { collection, addDoc, query, onSnapshot, getDocs, serverTimestamp, where } from "firebase/firestore";
+import { collection, query, onSnapshot, where } from "firebase/firestore";
 import { Shop, Lead } from "./types";
 import { toast } from "sonner";
 
@@ -355,9 +355,12 @@ function GiftClaimDialog({ shop, onClose, onClaimed }: {
     e.preventDefault();
     setBusy(true);
     try {
-      await addDoc(collection(db, "fairs", "main_fair", "shops", shop.id, "leads"), {
-        ...form, shopId: shop.id, claimedAt: serverTimestamp(),
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shopId: shop.id, name: form.name, email: form.email }),
       });
+      if (!res.ok) throw new Error("server error");
       toast.success("המתנה בדרך אלייך! 🎉", { description: "פרטי המתנה נשלחו לאימייל שלך." });
       onClaimed(shop.id);
     } catch {
@@ -438,25 +441,12 @@ function FinaleDialog({ collectedCount, shopIds, onClose }: {
     e.preventDefault();
     setBusy(true);
     try {
-      const claimedAt = serverTimestamp();
-      // Save summary to finale_leads
-      await addDoc(collection(db, "fairs", "main_fair", "finale_leads"), {
-        name,
-        email,
-        shopIds,
-        claimedAt,
+      const res = await fetch("/api/finale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, shopIds }),
       });
-      // Save a lead in each collected shop so business owners see the data
-      await Promise.all(
-        shopIds.map((shopId) =>
-          addDoc(collection(db, "fairs", "main_fair", "shops", shopId, "leads"), {
-            name,
-            email,
-            shopId,
-            claimedAt,
-          })
-        )
-      );
+      if (!res.ok) throw new Error("server error");
       setSent(true);
     } catch {
       toast.error("שגיאה קטנה", { description: "אנא נסי שנית." });
@@ -982,11 +972,12 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   })();
 
   useEffect(() => {
-    const q = query(collection(db, "fairs", "main_fair", "shops"));
-    getDocs(q).then(snap => {
-      const liveShops = snap.docs.map(d => ({ id: d.id, ...d.data() } as Shop));
-      setShops(liveShops.length > 0 ? liveShops : DEMO_SHOPS);
-    });
+    fetch("/api/shops")
+      .then(r => r.json())
+      .then((liveShops: Shop[]) => {
+        setShops(liveShops.length > 0 ? liveShops : DEMO_SHOPS);
+      })
+      .catch(() => setShops(DEMO_SHOPS));
   }, []);
 
   // Auto-drive — advances one shop per full leg at current speed.

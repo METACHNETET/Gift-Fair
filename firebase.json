@@ -27,10 +27,16 @@
       }
     ],
     "rewrites": [
+      { "source": "/api/shops", "function": "getShops" },
+      { "source": "/api/leads", "function": "saveLead" },
+      { "source": "/api/finale", "function": "saveFinale" },
       {
         "source": "**",
         "destination": "/index.html"
       }
     ]
+  },
+  "functions": {
+    "source": "functions"
   }
 }
