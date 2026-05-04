@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "./lib/AuthContext";
 import { auth, db } from "./lib/firebase";
 import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
-import { collection, query, onSnapshot, where } from "firebase/firestore";
+import { collection, query, onSnapshot, where, addDoc, serverTimestamp, writeBatch, doc, getDocs, setDoc } from "firebase/firestore";
 import { Shop, Lead } from "./types";
 import { toast } from "sonner";
 
@@ -355,16 +355,18 @@ function GiftClaimDialog({ shop, onClose, onClaimed }: {
     e.preventDefault();
     setBusy(true);
     try {
-      const res = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shopId: shop.id, name: form.name, email: form.email }),
+      await addDoc(collection(db, "fairs", "main_fair", "shops", shop.id, "leads"), {
+        shopId: shop.id,
+        name: form.name,
+        email: form.email,
+        claimedAt: serverTimestamp(),
       });
-      if (!res.ok) throw new Error("server error");
       toast.success("המתנה בדרך אלייך! 🎉", { description: "פרטי המתנה נשלחו לאימייל שלך." });
       onClaimed(shop.id);
-    } catch {
-      toast.error("שגיאה ברישום", { description: "אנא נסי שנית מאוחר יותר." });
+    } catch (err: unknown) {
+      console.error("GiftClaimDialog error:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("שגיאה ברישום", { description: msg, duration: 10000 });
     } finally {
       setBusy(false);
     }
@@ -399,13 +401,13 @@ function GiftClaimDialog({ shop, onClose, onClaimed }: {
           <p className="text-stone-600 leading-relaxed mb-6 text-sm">{shop.giftDescription}</p>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-sm font-semibold block mb-1">שם מלא</label>
-              <Input required placeholder="הכניסי את שמך" className="rounded-xl"
+              <label className="text-sm font-semibold block mb-1" htmlFor="giftclaim-name">שם מלא</label>
+              <Input id="giftclaim-name" required placeholder="הכניסי את שמך" className="rounded-xl"
                 value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
             </div>
             <div>
-              <label className="text-sm font-semibold block mb-1">אימייל</label>
-              <Input required type="email" placeholder="example@email.com" className="rounded-xl"
+              <label className="text-sm font-semibold block mb-1" htmlFor="giftclaim-email">אימייל</label>
+              <Input id="giftclaim-email" required type="email" placeholder="example@email.com" className="rounded-xl"
                 value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
             </div>
             <Button type="submit" disabled={busy}
@@ -441,15 +443,22 @@ function FinaleDialog({ collectedCount, shopIds, onClose }: {
     e.preventDefault();
     setBusy(true);
     try {
-      const res = await fetch("/api/finale", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, shopIds }),
-      });
-      if (!res.ok) throw new Error("server error");
+      const ts = serverTimestamp();
+      const batch = writeBatch(db);
+
+      const finalRef = doc(collection(db, "fairs", "main_fair", "finale_leads"));
+      batch.set(finalRef, { name, email, shopIds, claimedAt: ts });
+
+      for (const shopId of shopIds) {
+        const leadRef = doc(collection(db, "fairs", "main_fair", "shops", shopId, "leads"));
+        batch.set(leadRef, { shopId, name, email, claimedAt: ts });
+      }
+
+      await batch.commit();
       setSent(true);
-    } catch {
-      toast.error("שגיאה קטנה", { description: "אנא נסי שנית." });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("שגיאה — לא נשמר", { description: msg, duration: 10000 });
     } finally {
       setBusy(false);
     }
@@ -972,9 +981,13 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   })();
 
   useEffect(() => {
-    fetch("/api/shops")
-      .then(r => r.json())
-      .then((liveShops: Shop[]) => {
+    // Ensure main_fair document exists so it's visible in Firebase Console
+    setDoc(doc(db, "fairs", "main_fair"), { name: "יריד המתנות", isActive: true }, { merge: true }).catch(() => {});
+
+    const q = query(collection(db, "fairs", "main_fair", "shops"));
+    getDocs(q)
+      .then((snap) => {
+        const liveShops = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Shop));
         setShops(liveShops.length > 0 ? liveShops : DEMO_SHOPS);
       })
       .catch(() => setShops(DEMO_SHOPS));
@@ -1835,12 +1848,13 @@ function BusinessDashboard({ onBack }: { onBack: () => void }) {
                   <p className="text-stone-500 mb-8">צרי את המתנה הדיגיטלית שלך עכשיו וקבלי חשיפה למאות לקוחות פוטנציאלים.</p>
                   <form onSubmit={handleCreateShop} className="max-w-xl mx-auto space-y-6 text-right">
                     <div className="space-y-2">
-                      <label className="font-semibold">שם המתנה (לדוגמה: מדריך חינמי לעיצוב הבית)</label>
-                      <Input name="giftName" required placeholder="שם קליט ומושך" className="py-6 rounded-xl" />
+                      <label className="font-semibold" htmlFor="shop-giftName">שם המתנה (לדוגמה: מדריך חינמי לעיצוב הבית)</label>
+                      <Input id="shop-giftName" name="giftName" required placeholder="שם קליט ומושך" className="py-6 rounded-xl" />
                     </div>
                     <div className="space-y-2">
-                      <label className="font-semibold">תיאור קצר (מה הם יקבלו?)</label>
+                      <label className="font-semibold" htmlFor="shop-giftDescription">תיאור קצר (מה הם יקבלו?)</label>
                       <textarea 
+                        id="shop-giftDescription"
                         name="giftDescription" 
                         required 
                         className="w-full min-h-[120px] p-4 bg-white border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary"
@@ -1848,8 +1862,8 @@ function BusinessDashboard({ onBack }: { onBack: () => void }) {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="font-semibold">קישור לתמונה (אופציונלי)</label>
-                      <Input name="giftImageUrl" placeholder="https://..." className="py-6 rounded-xl" />
+                      <label className="font-semibold" htmlFor="shop-giftImageUrl">קישור לתמונה (אופציונלי)</label>
+                      <Input id="shop-giftImageUrl" name="giftImageUrl" placeholder="https://..." className="py-6 rounded-xl" />
                     </div>
                     <Button type="submit" className="w-full py-6 rounded-xl bg-brand-accent text-lg">
                       הוספת המתנה שלי ליריד

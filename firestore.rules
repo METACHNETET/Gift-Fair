@@ -35,7 +35,9 @@ service cloud.firestore {
     // Fairs
     match /fairs/{fairId} {
       allow read: if true;
-      allow write: if false; // Only admins (manual/backend) can create fairs for now
+      allow create: if true; // App can initialize fair document
+      allow update: if false; // Only admins
+      allow delete: if false;
       
       // Shops in a fair
       match /shops/{shopId} {
@@ -62,6 +64,12 @@ service cloud.firestore {
           allow read: if isSignedIn() && get(/databases/$(database)/documents/fairs/$(fairId)/shops/$(shopId)).data.businessId == request.auth.uid;
           allow create: if true; // Anyone can sign up for a gift
         }
+      }
+
+      // Finale leads (full-fair sign-up)
+      match /finale_leads/{leadId} {
+        allow create: if true; // Anyone can submit finale form
+        allow read: if false;  // Only via admin SDK
       }
     }
   }
