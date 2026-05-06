@@ -9,8 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "./lib/AuthContext";
 import { auth, db } from "./lib/firebase";
 import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
-import { collection, query, onSnapshot, where, addDoc, serverTimestamp, writeBatch, doc, getDocs, setDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, where } from "firebase/firestore";
 import { Shop, Lead } from "./types";
+import GENERATED_SHOPS from "./shops-data";
 import { toast } from "sonner";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -49,109 +50,7 @@ function Cloud({ xPct, yPct, w, dur }: { xPct: number; yPct: number; w: number; 
 
 const HOUSE_IMAGES = ["/houses/house-1.png", "/houses/house-2.png", "/houses/house-3.png"];
 
-const DEMO_SHOPS: Shop[] = [
-  {
-    id: "demo-shop-1",
-    fairId: "main_fair",
-    businessId: "biz-1",
-    businessName: "Bloom Beauty",
-    giftName: "ערכת גלואו מיני",
-    giftDescription: "ערכת התנסות יוקרתית לעור זוהר עם סרום ומסכת לילה.",
-    giftImageUrl: "https://picsum.photos/seed/giftfair1/600/360",
-    logoUrl: "/logos/shop-1.png",
-    leadsCount: 0,
-  },
-  {
-    id: "demo-shop-2",
-    fairId: "main_fair",
-    businessId: "biz-2",
-    businessName: "Luna Jewelry",
-    giftName: "צמיד כוכב מתנה",
-    giftDescription: "צמיד עדין מצופה זהב באריזת מתנה נוצצת.",
-    giftImageUrl: "https://picsum.photos/seed/giftfair2/600/360",
-    leadsCount: 0,
-  },
-  {
-    id: "demo-shop-3",
-    fairId: "main_fair",
-    businessId: "biz-3",
-    businessName: "Maya Cakes",
-    giftName: "קופסת מקרונים",
-    giftDescription: "מארז טעימות פרימיום באריזה צבעונית.",
-    giftImageUrl: "https://picsum.photos/seed/giftfair3/600/360",
-    leadsCount: 0,
-  },
-  {
-    id: "demo-shop-4",
-    fairId: "main_fair",
-    businessId: "biz-4",
-    businessName: "Urban Style",
-    giftName: "אקססורי אופנה",
-    giftDescription: "פריט סטייל לבחירה מתוך קולקציית האביב החדשה.",
-    giftImageUrl: "https://picsum.photos/seed/giftfair4/600/360",
-    leadsCount: 0,
-  },
-  {
-    id: "demo-shop-5",
-    fairId: "main_fair",
-    businessId: "biz-5",
-    businessName: "Green Ritual",
-    giftName: "נר ארומתרפי",
-    giftDescription: "נר טבעי בריח וניל-לבנדר לשדרוג האווירה בבית.",
-    giftImageUrl: "https://picsum.photos/seed/giftfair5/600/360",
-    leadsCount: 0,
-  },
-  {
-    id: "demo-shop-6",
-    fairId: "main_fair",
-    businessId: "biz-6",
-    businessName: "Silk Hair Lab",
-    giftName: "מסכת שיער פרו",
-    giftDescription: "מסכת שיקום עמוקה לשיער רך ומבריק במיוחד.",
-    giftImageUrl: "https://picsum.photos/seed/giftfair6/600/360",
-    leadsCount: 0,
-  },
-  {
-    id: "demo-shop-7",
-    fairId: "main_fair",
-    businessId: "biz-7",
-    businessName: "Aura Home",
-    giftName: "סט תחתיות מעוצב",
-    giftDescription: "סט דקורטיבי לשולחן אירוח במראה מודרני.",
-    giftImageUrl: "https://picsum.photos/seed/giftfair7/600/360",
-    leadsCount: 0,
-  },
-  {
-    id: "demo-shop-8",
-    fairId: "main_fair",
-    businessId: "biz-8",
-    businessName: "Pure Scent",
-    giftName: "בושם כיס",
-    giftDescription: "ניחוח פרשי במהדורה מוקטנת לנשיאה בתיק.",
-    giftImageUrl: "https://picsum.photos/seed/giftfair8/600/360",
-    leadsCount: 0,
-  },
-  {
-    id: "demo-shop-9",
-    fairId: "main_fair",
-    businessId: "biz-9",
-    businessName: "Noya Studio",
-    giftName: "שובר סדנת יצירה",
-    giftDescription: "שובר אישי לסדנת DIY חווייתית.",
-    giftImageUrl: "https://picsum.photos/seed/giftfair9/600/360",
-    leadsCount: 0,
-  },
-  {
-    id: "demo-shop-10",
-    fairId: "main_fair",
-    businessId: "biz-10",
-    businessName: "Glow Nails",
-    giftName: "טיפוח ציפורניים",
-    giftDescription: "ערכת פינוק ביתית לציפורניים מטופחות וזוהרות.",
-    giftImageUrl: "https://picsum.photos/seed/giftfair10/600/360",
-    leadsCount: 0,
-  },
-];
+const DEMO_SHOPS: Shop[] = GENERATED_SHOPS;
 
 // ─── ShopBuilding ─────────────────────────────────────────────────────────────
 function ShopBuilding({
@@ -355,18 +254,16 @@ function GiftClaimDialog({ shop, onClose, onClaimed }: {
     e.preventDefault();
     setBusy(true);
     try {
-      await addDoc(collection(db, "fairs", "main_fair", "shops", shop.id, "leads"), {
-        shopId: shop.id,
-        name: form.name,
-        email: form.email,
-        claimedAt: serverTimestamp(),
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shopId: shop.id, name: form.name, email: form.email }),
       });
+      if (!res.ok) throw new Error("server error");
       toast.success("המתנה בדרך אלייך! 🎉", { description: "פרטי המתנה נשלחו לאימייל שלך." });
       onClaimed(shop.id);
-    } catch (err: unknown) {
-      console.error("GiftClaimDialog error:", err);
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error("שגיאה ברישום", { description: msg, duration: 10000 });
+    } catch {
+      toast.error("שגיאה ברישום", { description: "אנא נסי שנית מאוחר יותר." });
     } finally {
       setBusy(false);
     }
@@ -401,13 +298,13 @@ function GiftClaimDialog({ shop, onClose, onClaimed }: {
           <p className="text-stone-600 leading-relaxed mb-6 text-sm">{shop.giftDescription}</p>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-sm font-semibold block mb-1" htmlFor="giftclaim-name">שם מלא</label>
-              <Input id="giftclaim-name" required placeholder="הכניסי את שמך" className="rounded-xl"
+              <label className="text-sm font-semibold block mb-1">שם מלא</label>
+              <Input required placeholder="הכניסי את שמך" className="rounded-xl"
                 value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
             </div>
             <div>
-              <label className="text-sm font-semibold block mb-1" htmlFor="giftclaim-email">אימייל</label>
-              <Input id="giftclaim-email" required type="email" placeholder="example@email.com" className="rounded-xl"
+              <label className="text-sm font-semibold block mb-1">אימייל</label>
+              <Input required type="email" placeholder="example@email.com" className="rounded-xl"
                 value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
             </div>
             <Button type="submit" disabled={busy}
@@ -443,22 +340,15 @@ function FinaleDialog({ collectedCount, shopIds, onClose }: {
     e.preventDefault();
     setBusy(true);
     try {
-      const ts = serverTimestamp();
-      const batch = writeBatch(db);
-
-      const finalRef = doc(collection(db, "fairs", "main_fair", "finale_leads"));
-      batch.set(finalRef, { name, email, shopIds, claimedAt: ts });
-
-      for (const shopId of shopIds) {
-        const leadRef = doc(collection(db, "fairs", "main_fair", "shops", shopId, "leads"));
-        batch.set(leadRef, { shopId, name, email, claimedAt: ts });
-      }
-
-      await batch.commit();
+      const res = await fetch("/api/finale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, shopIds }),
+      });
+      if (!res.ok) throw new Error("server error");
       setSent(true);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error("שגיאה — לא נשמר", { description: msg, duration: 10000 });
+    } catch {
+      toast.error("שגיאה קטנה", { description: "אנא נסי שנית." });
     } finally {
       setBusy(false);
     }
@@ -981,13 +871,9 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   })();
 
   useEffect(() => {
-    // Ensure main_fair document exists so it's visible in Firebase Console
-    setDoc(doc(db, "fairs", "main_fair"), { name: "יריד המתנות", isActive: true }, { merge: true }).catch(() => {});
-
-    const q = query(collection(db, "fairs", "main_fair", "shops"));
-    getDocs(q)
-      .then((snap) => {
-        const liveShops = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Shop));
+    fetch("/api/shops")
+      .then(r => r.json())
+      .then((liveShops: Shop[]) => {
         setShops(liveShops.length > 0 ? liveShops : DEMO_SHOPS);
       })
       .catch(() => setShops(DEMO_SHOPS));
@@ -1848,13 +1734,12 @@ function BusinessDashboard({ onBack }: { onBack: () => void }) {
                   <p className="text-stone-500 mb-8">צרי את המתנה הדיגיטלית שלך עכשיו וקבלי חשיפה למאות לקוחות פוטנציאלים.</p>
                   <form onSubmit={handleCreateShop} className="max-w-xl mx-auto space-y-6 text-right">
                     <div className="space-y-2">
-                      <label className="font-semibold" htmlFor="shop-giftName">שם המתנה (לדוגמה: מדריך חינמי לעיצוב הבית)</label>
-                      <Input id="shop-giftName" name="giftName" required placeholder="שם קליט ומושך" className="py-6 rounded-xl" />
+                      <label className="font-semibold">שם המתנה (לדוגמה: מדריך חינמי לעיצוב הבית)</label>
+                      <Input name="giftName" required placeholder="שם קליט ומושך" className="py-6 rounded-xl" />
                     </div>
                     <div className="space-y-2">
-                      <label className="font-semibold" htmlFor="shop-giftDescription">תיאור קצר (מה הם יקבלו?)</label>
+                      <label className="font-semibold">תיאור קצר (מה הם יקבלו?)</label>
                       <textarea 
-                        id="shop-giftDescription"
                         name="giftDescription" 
                         required 
                         className="w-full min-h-[120px] p-4 bg-white border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary"
@@ -1862,8 +1747,8 @@ function BusinessDashboard({ onBack }: { onBack: () => void }) {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="font-semibold" htmlFor="shop-giftImageUrl">קישור לתמונה (אופציונלי)</label>
-                      <Input id="shop-giftImageUrl" name="giftImageUrl" placeholder="https://..." className="py-6 rounded-xl" />
+                      <label className="font-semibold">קישור לתמונה (אופציונלי)</label>
+                      <Input name="giftImageUrl" placeholder="https://..." className="py-6 rounded-xl" />
                     </div>
                     <Button type="submit" className="w-full py-6 rounded-xl bg-brand-accent text-lg">
                       הוספת המתנה שלי ליריד
