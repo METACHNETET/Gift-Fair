@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence, useAnimationControls } from "motion/react";
 import { Store, LogIn, LogOut, ChevronLeft, Share2, Users, Play, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,13 +18,16 @@ import { toast } from "sonner";
 const SHOP_SPACING = 2100;
 const ROAD_START = 240;
 const CAR_RIGHT_OFFSET = 28;
-const CAR_VISUAL_WIDTH = 540;
-const HOUSE_SCALE = 5;
+const CAR_VISUAL_WIDTH = 270;
+const HOUSE_SCALE = 3;
 const TRAVEL_SPEED_PX_PER_SEC = 240;
 const WORLD_MOVE_DURATION_SEC = SHOP_SPACING / TRAVEL_SPEED_PX_PER_SEC;
 const WORLD_MOVE_INTERVAL_MS = Math.round(WORLD_MOVE_DURATION_SEC * 1000);
 const ROAD_DASH_SHIFT_PX = 80;
 const ROAD_DASH_DURATION_SEC = ROAD_DASH_SHIFT_PX / TRAVEL_SPEED_PX_PER_SEC;
+
+// Reference design width — all pixel values are authored at this width
+const REF_W = 1440;
 
 // Speed levels: multipliers × base speed (1 = 240 px/s)
 const SPEED_LEVELS = [0.4, 1, 2, 3.5, 6] as const;
@@ -765,6 +768,23 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   }, []);
   const showWelcomeRef = useRef(showWelcome);
   useEffect(() => { showWelcomeRef.current = showWelcome; }, [showWelcome]);
+
+  // ── Responsive scale ────────────────────────────────────────────────────
+  const outerRef = useRef<HTMLDivElement>(null);
+  const [gameScale, setGameScale] = useState(() => window.innerWidth / REF_W);
+  const [outerH, setOuterH] = useState(window.innerHeight);
+  useEffect(() => {
+    const el = outerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      const r = entries[0].contentRect;
+      setOuterH(r.height);
+      setGameScale(r.width / REF_W);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const TIMER_TOTAL = 1 * 60;
   const [timeLeft, setTimeLeft] = useState(TIMER_TOTAL);
   const [timerStarted, setTimerStarted] = useState(false);
@@ -863,7 +883,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
 
   // ── world offset — shops approach from LEFT, move rightward past car ──────
   const worldX = (() => {
-    const vpW = gameRef.current?.clientWidth ?? (typeof window !== "undefined" ? window.innerWidth : 1200);
+    const vpW = REF_W;
     const carX = vpW - CAR_RIGHT_OFFSET - CAR_VISUAL_WIDTH / 2;
     const totalW = ROAD_START + (shops.length + 2) * SHOP_SPACING;
     if (currentIdx < 0) return carX - totalW + 60;            // show start sign at car
@@ -990,7 +1010,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   const currentShop = currentIdx > 0 && currentIdx <= shops.length ? shops[currentIdx - 1] : null;
 
   return (
-    <div className="min-h-screen flex flex-col" dir="ltr" style={{ userSelect: "none" }}>
+    <div className="h-screen flex flex-col" dir="ltr" style={{ userSelect: "none" }}>
 
       {/* ── Floating header ────────────────────────────────────────────────── */}
       <div className="absolute top-0 left-0 right-0 z-30 flex justify-between items-center px-5 py-3 pointer-events-none">
@@ -1072,7 +1092,13 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
       </AnimatePresence>
 
       {/* ── Game canvas ────────────────────────────────────────────────────── */}
-      <div ref={gameRef} className="relative flex-1 overflow-hidden" style={{ minHeight: 540 }}>
+      <div ref={outerRef} className="relative flex-1 overflow-hidden bg-gradient-to-b from-sky-600 via-sky-300 to-blue-100">
+        {/* Inner canvas: always REF_W wide, scaled to fill the outer div */}
+        <div
+          ref={gameRef}
+          className="absolute top-0 left-0 origin-top-left"
+          style={{ width: REF_W, height: outerH / gameScale, transform: `scale(${gameScale})` }}
+        >
 
         {/* sky */}
         <div className="absolute inset-0 bg-gradient-to-b from-sky-600 via-sky-300 to-blue-100" />
@@ -1195,8 +1221,8 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
               style={{
                 width: 40,
                 height: 40,
-                right: 320,
-                bottom: 158,
+                right: 160,
+                bottom: 79,
                 background: "radial-gradient(circle, rgba(90,90,90,0.75) 0%, rgba(130,130,130,0.2) 55%, rgba(150,150,150,0) 75%)",
                 filter: "blur(6px)",
               }}
@@ -1217,11 +1243,11 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
           ))}
 
           {/* scaled car + wheels wrapper */}
-          <div style={{ position: "relative", display: "inline-block", transform: "scale(4)", transformOrigin: "bottom right" }}>
+          <div style={{ position: "relative", display: "inline-block", transform: "scale(2)", transformOrigin: "bottom right" }}>
             <img
               src="/houses/car.png"
               alt="רכב מתנות"
-              className="w-[260px] md:w-[320px] h-auto select-none pointer-events-none"
+              className="w-[260px] h-auto select-none pointer-events-none"
               style={{
                 filter: "drop-shadow(2px 6px 10px rgba(0,0,0,.4))",
                 display: "block",
@@ -1467,7 +1493,8 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
             <WelcomeOverlay onStart={() => setShowWelcome(false)} />
           )}
         </AnimatePresence>
-      </div>
+        </div>{/* end inner scaled canvas */}
+      </div>{/* end outer clip */}
 
       {/* ── HUD — progress bar ─────────────────────────────────────────────── */}
       <div className="bg-brand-primary text-white px-4 py-3 flex items-center justify-between gap-3" dir="rtl">
