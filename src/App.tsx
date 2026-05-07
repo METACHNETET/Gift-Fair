@@ -81,7 +81,7 @@ function ShopBuilding({
       {/* ── Business sign — in front of house ────────────────────── */}
       <div
         className="absolute flex flex-col items-center"
-        style={{ bottom: 190, zIndex: 10, right: -580 }}
+        style={{ bottom: 80, zIndex: 5, right: -580 }}
       >
         {/* board */}
         <div
@@ -111,7 +111,7 @@ function ShopBuilding({
           )}
         </div>
         {/* post */}
-        <div style={{ width: 20, height: 100, background: "#78350f", borderRadius: 4 }} />
+        <div style={{ width: 20, height: 210, background: "#78350f", borderRadius: 4 }} />
       </div>
 
     </div>
@@ -509,21 +509,25 @@ function FinaleDialog({ collectedCount, shopIds, onClose }: {
 // ─── WelcomeOverlay ──────────────────────────────────────────────────────────
 function WelcomeOverlay({ onStart }: { onStart: () => void }) {
   const steps = [
-    { title: "עולים על ההגה", desc: "לחצו על כפתור ההתחלה או במקלדת על מקש SPACE והתחילו בנסיעה" },
-    { title: "מנווטים בזהירות", desc: "סעו לאורך הכביש ותהנו מהנוף..." },
-    { title: "מכווננים את הגז", desc: "השתמשו במד המהירות שמאלה כדי להגביר ולהאט — חיצי ↑↓ במקלדת או לחיצה על +/−" },
-    { title: "עוצרים ומרוויחים", desc: "זיהיתם חנות בצד הדרך? עצרו לידה בדיוק בזמן!" },
-    { title: "אוספים את המתנה", desc: "הצלחתם לעצור? בום! זכיתם במתנה דיגיטלית בלעדית שתקפיץ לכם את העסק." },
+    { title: "איך נוסעים?", desc: "לחצו על \"סע\" או על מקש SPACE כדי להתחיל. לעצור? לחצו \"עצור\" — פשוט!" },
+    { title: "מגבירים ומאטים", desc: "יש לכם מד מהירות בצד — לחצו +/− או השתמשו בחיצי ↑↓ כדי לשלוט בקצב." },
+    { title: "רואים חנות? עצרו!", desc: "כשתזהו חנות בצד הכביש — זה הרגע! עצרו בדיוק ליד כדי לאסוף את המתנה." },
+    { title: "מתנה נאספה!", desc: "כל עצירה בזמן = מתנה דיגיטלית אמיתית שתישלח אליכם למייל!" },
   ];
 
-  const STEP_DURATION = 2200; // ms per step
-  const [phase, setPhase] = useState<"title" | "steps" | "final">("title");
+  const STEP_DURATION = 2200;
+  const [phase, setPhase] = useState<"welcome" | "steps" | "final">("welcome");
   const [stepIdx, setStepIdx] = useState(0);
+  const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 600);
+  const [isTablet, setIsTablet] = useState(() => window.innerWidth >= 600 && window.innerWidth < 1200);
 
   useEffect(() => {
-    // After title shown (1.2s), start cycling steps
-    const t1 = window.setTimeout(() => setPhase("steps"), 1200);
-    return () => window.clearTimeout(t1);
+    const onResize = () => {
+      setIsNarrow(window.innerWidth < 600);
+      setIsTablet(window.innerWidth >= 600 && window.innerWidth < 1200);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   useEffect(() => {
@@ -539,7 +543,7 @@ function WelcomeOverlay({ onStart }: { onStart: () => void }) {
 
   return (
     <motion.div
-      className="absolute inset-0 z-50 flex items-center justify-start overflow-hidden pl-[18%] md:pl-[22%] pb-[10%]"
+      className="absolute inset-0 z-50 overflow-hidden"
       style={{ background: "transparent" }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -555,94 +559,211 @@ function WelcomeOverlay({ onStart }: { onStart: () => void }) {
         >✦</motion.div>
       ))}
 
-      <div className="relative max-w-xl w-full" dir="rtl">
+      {/* ── Matan — feet planted on green strip ── */}
+      {/* ground shadow ellipse */}
+      <div
+        className="absolute pointer-events-none"
+        style={{
+          bottom: 126,
+          ...(isNarrow ? { left: "50%", transform: "translateX(-50%)", marginLeft: -100 } : { left: 200 }),
+          width: isNarrow ? 200 : 130,
+          height: isNarrow ? 28 : 18,
+          borderRadius: "50%",
+          background: "radial-gradient(ellipse at center, rgba(0,0,0,0.28) 0%, transparent 75%)",
+          zIndex: 9,
+        }}
+      />
+      <motion.img
+        src="/MATAN.png"
+        alt="מתן"
+        className="absolute select-none pointer-events-none"
+        style={{
+          bottom: 92,
+          ...(isNarrow ? { left: "50%", transform: "translateX(-50%)", marginLeft: -120 } : { left: 200 }),
+          height: isNarrow ? 500 : 320,
+          width: "auto",
+          zIndex: 10,
+          objectFit: "contain",
+          objectPosition: "bottom",
+        }}
+        initial={{ opacity: 0, x: -40 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.7, type: "spring", bounce: 0.35 }}
+        draggable={false}
+      />
 
-        {/* ── Title (always visible) ── */}
-        <motion.div className="text-center mb-4"
-          initial={{ opacity: 0, y: -30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, type: "spring", bounce: 0.4 }}
+      {/* ── Speech bubble — positioned to the right of Matan (desktop) or above (mobile) ── */}
+      <div
+        className="absolute"
+        style={isNarrow
+          ? { top: 380, left: 320, right: 320, zIndex: 11 }
+          : isTablet
+            ? { bottom: 500, left: 780, right: 140, zIndex: 11 }
+            : { bottom: 320, left: 780, right: 140, zIndex: 11 }
+        }
+        dir="rtl"
+      >
+      <div className="relative w-full">
+
+        {/* ── Speech bubble ── */}
+        <motion.div
+          className="relative rounded-3xl"
+          style={{
+            background: "rgba(255,255,255,0.93)",
+            boxShadow: "0 8px 40px rgba(0,0,0,0.22)",
+            backdropFilter: "blur(10px)",
+            padding: isNarrow ? "52px 28px" : "20px 24px",
+            minHeight: isNarrow ? 700 : undefined,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+          }}
+          initial={{ opacity: 0, y: -20, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.6, type: "spring", bounce: 0.35 }}
         >
-          <h1 className="text-5xl md:text-7xl font-black tracking-tight leading-tight"
-            style={{ fontFamily: "'Heebo', sans-serif", color: "#1e1b4b" }}>
-            ברוכים הבאים למירוץ המתנות!
-          </h1>
-          <p className="text-2xl md:text-3xl font-bold mt-2"
-            style={{ fontFamily: "'Heebo', sans-serif", color: "#0f172a" }}>
-            מוכנים לצאת לדרך ולזכות בפרסים שווים?
-          </p>
-        </motion.div>
-
-        {/* ── Cycling step ── */}
-        {phase === "steps" && (
-          <div className="min-h-[120px] flex flex-col justify-center text-right mb-4">
-            <AnimatePresence mode="wait">
-              <motion.div key={stepIdx}
-                initial={{ opacity: 0, y: 40, scale: 0.92 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -30, scale: 0.95 }}
-                transition={{ duration: 0.45, ease: "easeOut" }}
-              >
-                <div className="text-4xl md:text-5xl font-black mb-2"
-                  style={{ fontFamily: "'Heebo', sans-serif", color: "#e11d48" }}>
-                  {steps[stepIdx].title}
-                </div>
-                <div className="text-xl md:text-2xl font-semibold"
-                  style={{ fontFamily: "'Heebo', sans-serif", color: "#1e40af" }}>
-                  {steps[stepIdx].desc}
-                </div>
-              </motion.div>
-            </AnimatePresence>
-            {/* dots */}
-            <div className="flex gap-2 mt-4 justify-end">
-              {steps.map((_, i) => (
-                <div key={i} className="rounded-full transition-all duration-300"
-                  style={{ width: i === stepIdx ? 22 : 8, height: 8, background: i === stepIdx ? "#e11d48" : "#cbd5e1" }} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── Final screen after all steps ── */}
-        {phase === "final" && (
-          <motion.div className="text-right mb-4"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <p className="text-xl md:text-2xl font-black mb-1"
-              style={{ fontFamily: "'Heebo', sans-serif", color: "#b45309" }}>
-              הטיימר מפרגן לכם לשחק דקה אחת — נראה מה תספיקו לאסוף!
-            </p>
-            <p className="text-lg md:text-xl font-semibold"
-              style={{ fontFamily: "'Heebo', sans-serif", color: "#7c3aed" }}>
-              חגורות בטיחות? יש. יד על ההגה? יש. קדימה, צאו לדרך!
-            </p>
-
-            {/* ── Start button ── */}
-            <motion.div className="flex justify-center mt-5"
-              initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.3, type: "spring", bounce: 0.5 }}>
+          {/* ── Welcome screen ── */}
+          {phase === "welcome" && (
+            <motion.div className="text-center"
+              initial={{ opacity: 0, y: -16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <h1 className="font-black tracking-tight leading-tight mb-3"
+                style={{ fontFamily: "'Heebo', sans-serif", color: "#1e1b4b", fontSize: isNarrow ? 52 : 22 }}>
+                ברוכים הבאים ליריד המתנות!
+              </h1>
+              <p className="font-bold mb-6"
+                style={{ fontFamily: "'Heebo', sans-serif", color: "#0f172a", fontSize: isNarrow ? 38 : 14 }}>
+                קיבלתם דקה אחת לאסוף כל מה שתרצו מהיריד — בלי לשלם!
+              </p>
               <motion.button
-                onClick={onStart}
-                className="relative px-14 py-4 text-2xl md:text-3xl font-black text-white rounded-full cursor-pointer overflow-hidden select-none"
+                onClick={() => setPhase("steps")}
+                className="relative px-8 py-4 font-black text-white rounded-full cursor-pointer overflow-hidden select-none"
                 style={{
                   fontFamily: "'Heebo', sans-serif",
+                  fontSize: isNarrow ? 36 : 14,
                   background: "linear-gradient(90deg, #f59e0b, #ef4444, #8b5cf6, #10b981, #f59e0b)",
                   backgroundSize: "300%",
                   border: "3px solid rgba(255,255,255,0.3)",
-                  boxShadow: "0 0 40px rgba(139,92,246,0.6), 0 0 80px rgba(245,158,11,0.3)",
+                  boxShadow: "0 0 30px rgba(139,92,246,0.5)",
                 }}
                 animate={{ backgroundPositionX: ["0%", "300%"] }}
                 transition={{ backgroundPositionX: { duration: 3, repeat: Infinity, ease: "linear" } }}
-                whileHover={{ scale: 1.1 }}
+                whileHover={{ scale: 1.08 }}
                 whileTap={{ scale: 0.95 }}
               >
-                יאללה, צאו לדרך!
+                ואוו מתן, איך זה הולך?
               </motion.button>
             </motion.div>
-          </motion.div>
-        )}
+          )}
+
+          {/* ── Cycling step ── */}
+          {phase === "steps" && (
+            <div className="min-h-[100px] flex flex-col justify-center text-right mb-3">
+              <AnimatePresence mode="wait">
+                <motion.div key={stepIdx}
+                  initial={{ opacity: 0, y: 30, scale: 0.92 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                  transition={{ duration: 0.4, ease: "easeOut" }}
+                >
+                  <div className="font-black mb-2"
+                    style={{ fontFamily: "'Heebo', sans-serif", color: "#e11d48", fontSize: isNarrow ? 52 : 18 }}>
+                    {steps[stepIdx].title}
+                  </div>
+                  <div className="font-semibold"
+                    style={{ fontFamily: "'Heebo', sans-serif", color: "#1e40af", fontSize: isNarrow ? 36 : 13 }}>
+                    {steps[stepIdx].desc}
+                  </div>
+                </motion.div>
+              </AnimatePresence>
+              {/* dots */}
+              <div className="flex gap-2 mt-3 justify-end">
+                {steps.map((_, i) => (
+                  <div key={i} className="rounded-full transition-all duration-300"
+                    style={{ width: i === stepIdx ? 20 : 7, height: 7, background: i === stepIdx ? "#e11d48" : "#cbd5e1" }} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Final screen ── */}
+          {phase === "final" && (
+            <motion.div className="text-right mb-3"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <p className="font-black mb-3"
+                style={{ fontFamily: "'Heebo', sans-serif", color: "#b45309", fontSize: isNarrow ? 42 : 14 }}>
+                קיבלתם דקה אחת לאסוף כל מה שתרצו מהיריד — בלי לשלם!
+              </p>
+              <p className="font-semibold mb-2"
+                style={{ fontFamily: "'Heebo', sans-serif", color: "#1e40af", fontSize: isNarrow ? 38 : 13 }}>
+                בכל חנות שתעצרו — נעמיס לכם מתנה.
+              </p>
+              <p className="font-black"
+                style={{ fontFamily: "'Heebo', sans-serif", color: "#7c3aed", fontSize: isNarrow ? 38 : 13 }}>
+                מתנה דיגיטלית אמיתית שתישלח אליכם למייל!
+              </p>
+
+              {/* ── Start button ── */}
+              <motion.div className="flex justify-center mt-5"
+                initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.3, type: "spring", bounce: 0.5 }}>
+                <motion.button
+                  onClick={onStart}
+                  className="relative px-10 py-3 text-xl md:text-2xl font-black text-white rounded-full cursor-pointer overflow-hidden select-none"
+                  style={{
+                    fontFamily: "'Heebo', sans-serif",
+                    background: "linear-gradient(90deg, #f59e0b, #ef4444, #8b5cf6, #10b981, #f59e0b)",
+                    backgroundSize: "300%",
+                    border: "3px solid rgba(255,255,255,0.3)",
+                    boxShadow: "0 0 40px rgba(139,92,246,0.6), 0 0 80px rgba(245,158,11,0.3)",
+                  }}
+                  animate={{ backgroundPositionX: ["0%", "300%"] }}
+                  transition={{ backgroundPositionX: { duration: 3, repeat: Infinity, ease: "linear" } }}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  יאללה, יוצאים לדרך!
+                </motion.button>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* ── Bubble tail ── */}
+          {isNarrow ? (
+            // Down-pointing tail for mobile (bubble above character)
+            <div style={{
+              position: "absolute",
+              bottom: -20,
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: 0,
+              height: 0,
+              borderLeft: "14px solid transparent",
+              borderRight: "14px solid transparent",
+              borderTop: "22px solid rgba(255,255,255,0.93)",
+              filter: "drop-shadow(0px 3px 4px rgba(0,0,0,0.10))",
+            }} />
+          ) : (
+            // Left-pointing tail for desktop (bubble to the right of character)
+            <div style={{
+              position: "absolute",
+              bottom: 32,
+              left: -20,
+              width: 0,
+              height: 0,
+              borderTop: "12px solid transparent",
+              borderBottom: "12px solid transparent",
+              borderRight: "22px solid rgba(255,255,255,0.93)",
+              filter: "drop-shadow(-3px 2px 4px rgba(0,0,0,0.10))",
+            }} />
+          )}
+        </motion.div>
+      </div>
       </div>
     </motion.div>
   );
@@ -1450,6 +1571,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
         </div>{/* end left panel */}
 
         {/* ── Drive controls ─────────────────────────────────────────────── */}
+        {!showWelcome && (
         <div className="absolute z-30 left-1/2 -translate-x-1/2" style={{ bottom: 136 }} dir="rtl">
           <div className="bg-white/90 backdrop-blur-md rounded-2xl p-2 shadow-xl border border-white/70">
             <div className="flex items-center gap-2">
@@ -1486,6 +1608,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
             <p className="text-[11px] text-slate-500 mt-1 px-1 text-center">קיצורים: S לסע, X לעצור, Space להחלפה</p>
           </div>
         </div>
+        )}
 
         {/* ── Welcome overlay ──────────────────────────────────────────────── */}
         <AnimatePresence>
