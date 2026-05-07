@@ -32,7 +32,8 @@ export const getShops = functions.https.onRequest((req, res) => {
       const shops = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       res.json(shops);
     } catch (e) {
-      res.status(500).json({ error: String(e) });
+      console.error("[getShops] Firestore error:", e);
+      res.json([]); // client falls back to DEMO_SHOPS
     }
   });
 });

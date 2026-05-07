@@ -28,8 +28,16 @@ export default defineConfig(({mode}) => {
       },
     },    server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
+      // Do not modify — file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
+      proxy: {
+        // Forward /api/* to the Firebase hosting emulator (default port 5000).
+        // Run: firebase emulators:start --only hosting,functions
+        '/api': {
+          target: 'http://localhost:5000',
+          changeOrigin: true,
+        },
+      },
     },
   };
 });

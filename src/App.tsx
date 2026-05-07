@@ -1012,12 +1012,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   })();
 
   useEffect(() => {
-    fetch("/api/shops")
-      .then(r => r.json())
-      .then((liveShops: Shop[]) => {
-        setShops(liveShops.length > 0 ? liveShops : DEMO_SHOPS);
-      })
-      .catch(() => setShops(DEMO_SHOPS));
+    setShops(DEMO_SHOPS);
   }, []);
 
   // Auto-drive — advances one shop per full leg at current speed.
