@@ -53,7 +53,8 @@ export const saveLead = functions.https.onRequest((req, res) => {
       });
       res.json({ ok: true });
     } catch (e) {
-      res.status(500).json({ error: String(e) });
+      console.error("[saveLead] Firestore error:", e);
+      res.json({ ok: false, error: String(e) });
     }
   });
 });
@@ -81,7 +82,8 @@ export const saveFinale = functions.https.onRequest((req, res) => {
       await batch.commit();
       res.json({ ok: true });
     } catch (e) {
-      res.status(500).json({ error: String(e) });
+      console.error("[saveFinale] Firestore error:", e);
+      res.json({ ok: false, error: String(e) });
     }
   });
 });

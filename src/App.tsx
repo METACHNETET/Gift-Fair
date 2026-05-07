@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "./lib/AuthContext";
 import { auth, db } from "./lib/firebase";
 import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
-import { collection, query, onSnapshot, where } from "firebase/firestore";
+import { collection, query, onSnapshot, where, addDoc, serverTimestamp, writeBatch, doc } from "firebase/firestore";
 import { Shop, Lead } from "./types";
 import GENERATED_SHOPS from "./shops-data";
 import { toast } from "sonner";
@@ -125,7 +125,7 @@ const FX_COLORS = [
   "#ffe066","#63e6be","#748ffc","#e599f7","#ff922b",
 ];
 
-function FireworksOverlay({ nonce }: { nonce: number }) {
+function FireworksOverlay({ nonce }: { nonce: number; key?: React.Key }) {
   const data = React.useMemo(() => {
     const bursts = Array.from({ length: 9 }, () => ({
       x: 8 + Math.random() * 84,
@@ -257,16 +257,18 @@ function GiftClaimDialog({ shop, onClose, onClaimed }: {
     e.preventDefault();
     setBusy(true);
     try {
-      const res = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shopId: shop.id, name: form.name, email: form.email }),
+      await addDoc(collection(db, "fairs", "main_fair", "shops", shop.id, "leads"), {
+        shopId: shop.id,
+        name: form.name,
+        email: form.email,
+        claimedAt: serverTimestamp(),
       });
-      if (!res.ok) throw new Error("server error");
       toast.success("המתנה בדרך אלייך! 🎉", { description: "פרטי המתנה נשלחו לאימייל שלך." });
       onClaimed(shop.id);
-    } catch {
-      toast.error("שגיאה ברישום", { description: "אנא נסי שנית מאוחר יותר." });
+    } catch (err: unknown) {
+      console.error("GiftClaimDialog error:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("שגיאה ברישום", { description: msg, duration: 10000 });
     } finally {
       setBusy(false);
     }
@@ -343,15 +345,22 @@ function FinaleDialog({ collectedCount, shopIds, onClose }: {
     e.preventDefault();
     setBusy(true);
     try {
-      const res = await fetch("/api/finale", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, shopIds }),
-      });
-      if (!res.ok) throw new Error("server error");
+      const ts = serverTimestamp();
+      const batch = writeBatch(db);
+
+      const finalRef = doc(collection(db, "fairs", "main_fair", "finale_leads"));
+      batch.set(finalRef, { name, email, shopIds, claimedAt: ts });
+
+      for (const shopId of shopIds) {
+        const leadRef = doc(collection(db, "fairs", "main_fair", "shops", shopId, "leads"));
+        batch.set(leadRef, { shopId, name, email, claimedAt: ts });
+      }
+
+      await batch.commit();
       setSent(true);
-    } catch {
-      toast.error("שגיאה קטנה", { description: "אנא נסי שנית." });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("שגיאה — לא נשמר", { description: msg, duration: 10000 });
     } finally {
       setBusy(false);
     }
