@@ -1375,24 +1375,6 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
               }}
               draggable={false}
             />
-            {/* front wheel (left side) */}
-            <motion.div
-              style={{ position: "absolute", left: 100, bottom: 22, width: 38, height: 38, borderRadius: "50%", overflow: "hidden", pointerEvents: "none", opacity: isDriving ? 1 : 0 }}
-              animate={{ rotate: isDriving ? 360 : 0 }}
-              transition={{ duration: 0.5, repeat: Infinity, ease: "linear" }}
-            >
-              <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: 2, background: "rgba(50,50,50,0.45)", transform: "translateY(-50%)" }} />
-              <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 2, background: "rgba(50,50,50,0.45)", transform: "translateX(-50%)" }} />
-            </motion.div>
-            {/* rear wheel (right side) */}
-            <motion.div
-              style={{ position: "absolute", left: 188, bottom: 22, width: 38, height: 38, borderRadius: "50%", overflow: "hidden", pointerEvents: "none", opacity: isDriving ? 1 : 0 }}
-              animate={{ rotate: isDriving ? 360 : 0 }}
-              transition={{ duration: 0.5, repeat: Infinity, ease: "linear" }}
-            >
-              <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: 2, background: "rgba(50,50,50,0.45)", transform: "translateY(-50%)" }} />
-              <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 2, background: "rgba(50,50,50,0.45)", transform: "translateX(-50%)" }} />
-            </motion.div>
           </div>
         </div>
 
@@ -1433,18 +1415,6 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
             <FireworksOverlay key={`${stopFx.shopId}-${stopFx.nonce}`} nonce={stopFx.nonce} />
           )}
         </AnimatePresence>
-
-        {/* ── Empty state ───────────────────────────────────────────────── */}
-        {shops.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
-              className="bg-white/80 backdrop-blur rounded-2xl p-8 text-center shadow-xl max-w-xs" dir="rtl">
-              <div className="text-5xl mb-4">🏗️</div>
-              <p className="font-display text-xl mb-2">היריד עומד להיפתח</p>
-              <p className="text-stone-500 text-sm">בעלות עסקים מוזמנות להצטרף</p>
-            </motion.div>
-          </div>
-        )}
 
         {/* ── Left side panel: Timer + Speedometer + Checkout ──────────── */}
         <div
