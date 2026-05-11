@@ -517,9 +517,14 @@ function FinaleDialog({ collectedCount, shopIds, allShops, onClose }: {
                     )}
                   </div>
                   <span className="text-sm text-stone-600 leading-snug pt-0.5">
-                    ברור שאני מאשרת דיוור — מהעסקים שהשתתפו ביריד, מדבורי זילברשטיין מנהלת יריד המתנות, ומ״מניפה לתנופה״ שנתנה חסות ואפשרה את כל הכיף הזה 🎉
+                    ברור שאני מאשרת דיוור — מהעסקים שצריכים לדוור לי את המתנות, לדבורי זילברשטיין ולמניפה לתנופה
                   </span>
                 </label>
+
+                <p className="text-[11px] text-stone-400 leading-relaxed text-center px-1">
+                  המתנות ישלחו אלייך בע״ה בסוף היריד.<br />
+                  האחריות על שליחת המתנות היא על בעלי העסקים בלבד — יריד המתנות אינו אחראי על שליחתן.
+                </p>
 
                 <motion.button
                   type="submit"
@@ -1468,7 +1473,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
                     style={{
                       position: 'absolute',
                       bottom: textBottom,
-                      left: `calc(50% + 1000px)`,
+                      left: `calc(50% + ${SHOP_SPACING / 2}px)`,
                       transform: 'translateX(-50%)',
                       textAlign: 'center',
                       width: textWidth,
