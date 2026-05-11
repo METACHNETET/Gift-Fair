@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "./lib/AuthContext";
 import { auth, db } from "./lib/firebase";
 import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
-import { collection, query, onSnapshot, where, addDoc, serverTimestamp, writeBatch, doc } from "firebase/firestore";
+import { collection, query, onSnapshot, where, addDoc, serverTimestamp, writeBatch, doc, getDocs, limit } from "firebase/firestore";
 import { Shop, Lead } from "./types";
 import GENERATED_SHOPS from "./shops-data";
 import { toast } from "sonner";
@@ -19,7 +19,7 @@ const SHOP_SPACING = 2100;
 const ROAD_START = 240;
 const CAR_RIGHT_OFFSET = 28;
 const CAR_VISUAL_WIDTH = 270;
-const HOUSE_SCALE = 3;
+const HOUSE_SCALE = 2.4;
 const TRAVEL_SPEED_PX_PER_SEC = 240;
 const WORLD_MOVE_DURATION_SEC = SHOP_SPACING / TRAVEL_SPEED_PX_PER_SEC;
 const WORLD_MOVE_INTERVAL_MS = Math.round(WORLD_MOVE_DURATION_SEC * 1000);
@@ -27,7 +27,8 @@ const ROAD_DASH_SHIFT_PX = 80;
 const ROAD_DASH_DURATION_SEC = ROAD_DASH_SHIFT_PX / TRAVEL_SPEED_PX_PER_SEC;
 
 // Reference design width — all pixel values are authored at this width
-const REF_W = 1440;
+// 1700 → gameScale ≈ 0.85 at 1440 px, shrinking everything ~15 % on typical desktops
+const REF_W = 1700;
 
 // Speed levels: multipliers × base speed (1 = 240 px/s)
 const SPEED_LEVELS = [0.4, 1, 2, 3.5, 6] as const;
@@ -65,10 +66,10 @@ function ShopBuilding({
 
   return (
     // Outer wrapper — tall enough for the gift emoji + building
-    <div className="relative select-none" style={{ width: 460, height: 340 }}>
+    <div className="relative select-none" style={{ width: 390, height: 290 }}>
 
       {/* ── House image — anchored to bottom ─────────────────────── */}
-      <div className="absolute bottom-0 w-full h-[190px]" style={{ zIndex: 1 }}>
+      <div className="absolute bottom-0 w-full h-[158px]" style={{ zIndex: 1 }}>
         <img
           src={houseImage}
           alt={`בית ${idx + 1}`}
@@ -81,26 +82,26 @@ function ShopBuilding({
       {/* ── Business sign — in front of house ────────────────────── */}
       <div
         className="absolute flex flex-col items-center"
-        style={{ bottom: 80, zIndex: 5, right: -580 }}
+        style={{ bottom: 66, zIndex: 5, right: -580 }}
       >
         {/* board */}
         <div
           className="relative flex items-center justify-center rounded-xl overflow-hidden"
           style={{
-            width: 440, height: 192,
+            width: 370, height: 158,
             background: "linear-gradient(135deg,#fffdf7 60%,#fef3c7)",
-            border: "12px solid #78350f",
+            border: "10px solid #78350f",
             boxShadow: "0 8px 32px rgba(0,0,0,.5), inset 0 2px 0 rgba(255,255,255,.7)",
           }}
         >
           {/* decorative top stripe */}
-          <div className="absolute top-0 left-0 right-0" style={{ height: 8, background: "#92400e" }} />
+          <div className="absolute top-0 left-0 right-0" style={{ height: 7, background: "#92400e" }} />
           {shop.logoUrl ? (
             <img
               src={shop.logoUrl}
               alt={shop.businessName}
               className="w-full h-full object-contain"
-              style={{ padding: "20px 12px 8px" }}
+              style={{ padding: "16px 10px 6px" }}
               draggable={false}
             />
           ) : (
@@ -111,7 +112,7 @@ function ShopBuilding({
           )}
         </div>
         {/* post */}
-        <div style={{ width: 20, height: 210, background: "#78350f", borderRadius: 4 }} />
+        <div style={{ width: 17, height: 175, background: "#78350f", borderRadius: 4 }} />
       </div>
 
     </div>
@@ -257,6 +258,14 @@ function GiftClaimDialog({ shop, onClose, onClaimed }: {
     e.preventDefault();
     setBusy(true);
     try {
+      const dupCheck = await getDocs(
+        query(collection(db, "fairs", "main_fair", "shops", shop.id, "leads"), where("email", "==", form.email), limit(1))
+      );
+      if (!dupCheck.empty) {
+        toast.info("כבר נרשמת למתנה זו 😊", { description: "האימייל הזה כבר רשום לחנות הזו." });
+        onClaimed(shop.id);
+        return;
+      }
       await addDoc(collection(db, "fairs", "main_fair", "shops", shop.id, "leads"), {
         shopId: shop.id,
         name: form.name,
@@ -330,14 +339,22 @@ function GiftClaimDialog({ shop, onClose, onClaimed }: {
 }
 
 // ─── FinaleDialog ─────────────────────────────────────────────────────────────
-function FinaleDialog({ collectedCount, shopIds, onClose }: {
-  collectedCount: number; shopIds: string[]; onClose: () => void;
+function FinaleDialog({ collectedCount, shopIds, allShops, onClose }: {
+  collectedCount: number; shopIds: string[]; allShops: Shop[]; onClose: () => void;
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const collectedSet = new Set(shopIds);
+  const uncollected = allShops.filter(s => !collectedSet.has(s.id));
+  const [extraIds, setExtraIds] = useState<Set<string>>(new Set());
+  const toggleExtra = (id: string) => setExtraIds(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
 
   const CONFETTI = ["🎁","🎀","🌟","✨","🎊","🎉","💝","🌸","🏆","🦋"];
 
@@ -348,10 +365,11 @@ function FinaleDialog({ collectedCount, shopIds, onClose }: {
       const ts = serverTimestamp();
       const batch = writeBatch(db);
 
+      const allIds = [...shopIds, ...Array.from(extraIds)];
       const finalRef = doc(collection(db, "fairs", "main_fair", "finale_leads"));
-      batch.set(finalRef, { name, email, shopIds, claimedAt: ts });
+      batch.set(finalRef, { name, email, shopIds: allIds, claimedAt: ts });
 
-      for (const shopId of shopIds) {
+      for (const shopId of allIds) {
         const leadRef = doc(collection(db, "fairs", "main_fair", "shops", shopId, "leads"));
         batch.set(leadRef, { shopId, name, email, claimedAt: ts });
       }
@@ -436,6 +454,33 @@ function FinaleDialog({ collectedCount, shopIds, onClose }: {
                 אנחנו כבר נדאג למשלוח 😊
               </p>
 
+              {/* ── Uncollected extras ── */}
+              {uncollected.length > 0 && (
+                <div className="mb-5">
+                  <p className="text-center font-bold text-violet-700 text-sm mb-3">רוצה להוסיף עוד מתנות? ✨</p>
+                  <div className="flex flex-col gap-2 max-h-40 overflow-y-auto pr-1">
+                    {uncollected.map(shop => (
+                      <label key={shop.id} className="flex items-center gap-3 cursor-pointer group select-none" onClick={() => toggleExtra(shop.id)}>
+                        <div className={`w-5 h-5 flex-shrink-0 rounded border-2 flex items-center justify-center transition-colors ${
+                          extraIds.has(shop.id) ? "bg-violet-600 border-violet-600" : "border-stone-300 group-hover:border-violet-400"
+                        }`}>
+                          {extraIds.has(shop.id) && (
+                            <motion.svg initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 400 }}
+                              viewBox="0 0 10 8" fill="none" className="w-3 h-3">
+                              <path d="M1 4l3 3 5-6" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                            </motion.svg>
+                          )}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm font-semibold text-stone-800 truncate">{shop.giftName}</span>
+                          <span className="text-xs text-stone-500 truncate">{shop.businessName}</span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <p className="text-center font-bold text-stone-800 text-base mb-4">
                 לאיפה לשלוח לך את הכבודה? 📦
               </p>
@@ -472,7 +517,7 @@ function FinaleDialog({ collectedCount, shopIds, onClose }: {
                     )}
                   </div>
                   <span className="text-sm text-stone-600 leading-snug pt-0.5">
-                    ברור שאני מאשרת דיוור — מהעסקים שהזמנתי מהם מתנות ומדבורי זילברשטיין מנהלת יריד המתנות.
+                    ברור שאני מאשרת דיוור — מהעסקים שהשתתפו ביריד, מדבורי זילברשטיין מנהלת יריד המתנות, ומ״מניפה לתנופה״ שנתנה חסות ואפשרה את כל הכיף הזה 🎉
                   </span>
                 </label>
 
@@ -516,7 +561,7 @@ function FinaleDialog({ collectedCount, shopIds, onClose }: {
 }
 
 // ─── WelcomeOverlay ──────────────────────────────────────────────────────────
-function WelcomeOverlay({ onStart }: { onStart: () => void }) {
+function WelcomeOverlay({ onStart, onContact }: { onStart: () => void; onContact: () => void }) {
   const steps = [
     { title: "איך נוסעים?", desc: "לחצו על \"סע\" או על מקש SPACE כדי להתחיל. לעצור? לחצו \"עצור\" — פשוט!" },
     { title: "מגבירים ומאטים", desc: "יש לכם מד מהירות בצד — לחצו +/− או השתמשו בחיצי ↑↓ כדי לשלוט בקצב." },
@@ -774,6 +819,28 @@ function WelcomeOverlay({ onStart }: { onStart: () => void }) {
         </motion.div>
       </div>
       </div>
+
+      {/* ── Contact button — always accessible ── */}
+      <button
+        onClick={onContact}
+        className="absolute"
+        style={{
+          bottom: 24,
+          right: 24,
+          zIndex: 60,
+          background: "rgba(255,255,255,0.18)",
+          backdropFilter: "blur(10px)",
+          border: "1.5px solid rgba(255,255,255,0.45)",
+          borderRadius: 999,
+          padding: "8px 20px",
+          color: "white",
+          fontWeight: 700,
+          fontSize: 14,
+          cursor: "pointer",
+        }}
+      >
+        ✉️ צור קשר
+      </button>
     </motion.div>
   );
 }
@@ -879,6 +946,79 @@ function Speedometer({ speed, onSpeedChange }: { speed: number; onSpeedChange: (
   );
 }
 
+// ─── ContactForm ─────────────────────────────────────────────────────────────
+function ContactForm({ onSent }: { onSent: () => void }) {
+  const [form, setForm] = useState({ name: "", email: "", message: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const data = new FormData();
+      data.append("name", form.name);
+      data.append("email", form.email);
+      data.append("message", form.message);
+      data.append("_subject", "פנייה מיריד המתנות");
+      data.append("_replyto", form.email);
+      data.append("_captcha", "false");
+      data.append("_template", "table");
+
+      const res = await fetch("https://formsubmit.co/ajax/d0527181611@gmail.com", {
+        method: "POST",
+        headers: { Accept: "application/json" },
+        body: data,
+      });
+      const json = await res.json().catch(() => null);
+      console.log("FormSubmit response:", res.status, json);
+      if (!res.ok || json?.success !== "true") {
+        throw new Error(json?.message ?? `שגיאת שרת (${res.status})`);
+      }
+      toast.success("ההודעה נשלחה! 🎉", { description: "אחזור אלייך בהקדם 😊" });
+      onSent();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("ContactForm error:", msg);
+      toast.error("שליחה נכשלה", { description: msg, duration: 8000 });
+      setError(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div>
+        <label className="text-sm font-semibold block mb-1">שם מלא</label>
+        <Input required placeholder="השם שלך" className="rounded-xl"
+          value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+      </div>
+      <div>
+        <label className="text-sm font-semibold block mb-1">אימייל</label>
+        <Input required type="email" placeholder="example@email.com" className="rounded-xl" dir="ltr"
+          value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
+      </div>
+      <div>
+        <label className="text-sm font-semibold block mb-1">הודעה</label>
+        <textarea
+          required
+          placeholder="במה אוכל לעזור?"
+          rows={3}
+          className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+          value={form.message}
+          onChange={e => setForm(p => ({ ...p, message: e.target.value }))}
+        />
+      </div>
+      {error && <p className="text-red-500 text-xs text-center">{error}</p>}
+      <Button type="submit" disabled={busy} className="w-full rounded-xl py-5 font-bold text-base bg-violet-600 hover:bg-violet-700 text-white">
+        {busy ? "שולח..." : "שלחי הודעה 🚀"}
+      </Button>
+    </form>
+  );
+}
+
 // ─── FairLanding — Road Game ─────────────────────────────────────────────────
 function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   const [shops, setShops] = useState<Shop[]>([]);
@@ -892,6 +1032,8 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   const [showWelcome, setShowWelcome] = useState(true);
   const [showBizPopup, setShowBizPopup] = useState(false);
   const [emailCopied, setEmailCopied] = useState(false);
+  const [showContact, setShowContact] = useState(false);
+  const [contactSent, setContactSent] = useState(false);
   useEffect(() => {
     const t = window.setTimeout(() => setShowBizPopup(true), 10000);
     return () => window.clearTimeout(t);
@@ -1142,10 +1284,6 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
         <motion.div className="flex items-center gap-3 pointer-events-auto"
           initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }}>
         </motion.div>
-        <Button variant="outline" size="sm" onClick={onOpenDashboard}
-          className="pointer-events-auto border-white/70 text-white hover:bg-white/20 backdrop-blur rounded-full" dir="rtl">
-          אני בעלת עסק
-        </Button>
       </div>
 
       {/* ── Biz popup modal ─────────────────────────────────────────── */}
@@ -1216,6 +1354,41 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
         )}
       </AnimatePresence>
 
+      {/* ── Contact modal ──────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showContact && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={e => e.target === e.currentTarget && setShowContact(false)}
+          >
+            <motion.div
+              className="bg-white rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl"
+              initial={{ scale: 0.75, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.75, opacity: 0 }}
+              transition={{ type: "spring", damping: 22, stiffness: 300 }}
+              dir="rtl"
+            >
+              <h2 className="text-2xl font-extrabold text-stone-800 mb-1">צור קשר ✉️</h2>
+              <p className="text-stone-500 text-sm mb-5">שלחי לי הודעה ואחזור אלייך בהקדם</p>
+              {!contactSent ? (
+                <ContactForm onSent={() => setContactSent(true)} />
+              ) : (
+                <div className="text-center py-4">
+                  <div className="text-5xl mb-3">🎉</div>
+                  <p className="font-extrabold text-stone-800 text-lg mb-1">ההודעה נשלחה!</p>
+                  <p className="text-stone-500 text-sm">אחזור אלייך בהקדם 😊</p>
+                </div>
+              )}
+              <button onClick={() => setShowContact(false)} className="block mx-auto mt-4 text-stone-400 text-sm hover:text-stone-600">
+                סגור
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Game canvas ────────────────────────────────────────────────────── */}
       <div ref={outerRef} className="relative flex-1 overflow-hidden bg-gradient-to-b from-sky-600 via-sky-300 to-blue-100">
         {/* Inner canvas: always REF_W wide, scaled to fill the outer div */}
@@ -1242,10 +1415,10 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
         <motion.div
           className="absolute bottom-0"
           animate={worldControls}
-          style={{ width: totalWorldW, height: 320, zIndex: 6 }}
+          style={{ width: totalWorldW, height: 264, zIndex: 6 }}
         >
           {/* start sign — rightmost in world (first to approach from left) */}
-          <div className="absolute flex flex-col items-center" style={{ left: totalWorldW - 90, bottom: 138 }}>
+          <div className="absolute flex flex-col items-center" style={{ left: totalWorldW - 90, bottom: 110 }}>
             <div className="bg-green-500 text-white font-bold text-sm px-3 py-1 rounded shadow border border-green-700">
               ▶ START
             </div>
@@ -1253,7 +1426,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
           </div>
 
           {/* finish sign — leftmost in world */}
-          <div className="absolute flex flex-col items-center" style={{ left: 60, bottom: 138 }}>
+          <div className="absolute flex flex-col items-center" style={{ left: 60, bottom: 110 }}>
             <div className="bg-red-600 text-white font-bold text-sm px-3 py-1 rounded shadow border border-red-800">
               🏁 FINISH
             </div>
@@ -1263,7 +1436,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
           {/* trees along the road */}
           {Array.from({ length: Math.ceil(totalWorldW / 160) }).map((_, i) => (
             <div key={i} className="absolute flex flex-col items-center pointer-events-none"
-              style={{ left: i * 160 + 30, bottom: 138 }}>
+              style={{ left: i * 160 + 30, bottom: 110 }}>
               <div className="w-0 h-0" style={{
                 borderLeft: "12px solid transparent", borderRight: "12px solid transparent",
                 borderBottom: "22px solid #16a34a",
@@ -1275,7 +1448,70 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
           {/* shops — laid right-to-left so shop 0 is rightmost (first to arrive) */}
           {!showWelcome && shops.map((shop, i) => (
             <div key={shop.id} className="absolute flex flex-col items-center"
-              style={{ left: totalWorldW - ROAD_START - (i + 1) * SHOP_SPACING + shopXOffset(i) - 95, bottom: 96 }}>
+              style={{ left: totalWorldW - ROAD_START - (i + 1) * SHOP_SPACING + shopXOffset(i) - 95, bottom: 78 }}>
+
+              {/* ── Sky text label above the shop ── */}
+              {(() => {
+                // top of houses from canvas bottom ≈ shopDiv.bottom(78) + ShopBuilding height(290)
+                const housesTop = 368;
+                const skyH = (outerH / gameScale) - housesTop;
+                const blockH = skyH * 0.25;
+                const fnBiz  = Math.round(blockH * 0.30);
+                const fnGift = Math.round(blockH * 0.22);
+                const fnDesc = Math.round(blockH * 0.14);
+                // vertically center block in sky; expressed relative to shop-div bottom
+                const textBottom = 290 + skyH * 0.25;
+                const textWidth  = Math.max(700, fnBiz * 14);
+                return (
+                  <div
+                    dir="rtl"
+                    style={{
+                      position: 'absolute',
+                      bottom: textBottom,
+                      left: `calc(50% + 1000px)`,
+                      transform: 'translateX(-50%)',
+                      textAlign: 'center',
+                      width: textWidth,
+                      zIndex: 8,
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    <div style={{
+                      color: '#1e3a8a',
+                      fontWeight: 800,
+                      fontSize: fnBiz,
+                      lineHeight: 1.2,
+                      textShadow: '0 0 20px rgba(255,255,255,0.99), 0 2px 10px rgba(255,255,255,0.9)',
+                      marginBottom: Math.round(fnBiz * 0.15),
+                      fontFamily: "'Heebo', sans-serif",
+                    }}>
+                      {shop.businessName}
+                    </div>
+                    <div style={{
+                      color: '#1d4ed8',
+                      fontWeight: 700,
+                      fontSize: fnGift,
+                      lineHeight: 1.3,
+                      textShadow: '0 0 16px rgba(255,255,255,0.99), 0 2px 8px rgba(255,255,255,0.9)',
+                      marginBottom: Math.round(fnGift * 0.15),
+                      fontFamily: "'Heebo', sans-serif",
+                    }}>
+                      {shop.giftName}
+                    </div>
+                    <div style={{
+                      color: '#2563eb',
+                      fontWeight: 500,
+                      fontSize: fnDesc,
+                      lineHeight: 1.5,
+                      textShadow: '0 0 14px rgba(255,255,255,0.98)',
+                      fontFamily: "'Heebo', sans-serif",
+                    }}>
+                      {shop.giftDescription}
+                    </div>
+                  </div>
+                );
+              })()}
+
               <ShopBuilding
                 shop={shop} idx={i}
                 isActive={i === currentIdx - 1}
@@ -1290,12 +1526,12 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
             style={{
               left: 0,
               right: -600,
-              bottom: -50,
-              height: 560,
+              bottom: -40,
+              height: 450,
               zIndex: 7,
               backgroundImage: "url('/vegetation.png')",
               backgroundRepeat: "repeat-x",
-              backgroundSize: "auto 560px",
+              backgroundSize: "auto 450px",
               backgroundPosition: "bottom center",
             }}
           />
@@ -1304,14 +1540,14 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
         {/* ── Full-width road (fixed, behind everything scrollable) ─────── */}
         {/* green ground strip */}
         <div className="absolute left-0 right-0 bg-gradient-to-b from-green-500 to-green-700 pointer-events-none"
-          style={{ bottom: 120, height: 160, zIndex: 5 }} />
+          style={{ bottom: 96, height: 128, zIndex: 5 }} />
 
         {/* sidewalk */}
         <div className="absolute left-0 right-0 bg-stone-300 border-t border-stone-400 pointer-events-none"
-          style={{ bottom: 120, height: 18, zIndex: 5 }} />
+          style={{ bottom: 96, height: 14, zIndex: 5 }} />
 
         {/* road */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gray-700 pointer-events-none" style={{ height: 120, zIndex: 5 }}>
+        <div className="absolute bottom-0 left-0 right-0 bg-gray-700 pointer-events-none" style={{ height: 96, zIndex: 5 }}>
           {/* edge lines */}
           <div className="absolute top-0 left-0 right-0 h-2 bg-gray-500" />
           <div className="absolute bottom-0 left-0 right-0 h-2 bg-gray-500" />
@@ -1347,7 +1583,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
                 width: 40,
                 height: 40,
                 right: 160,
-                bottom: 79,
+                bottom: 63,
                 background: "radial-gradient(circle, rgba(90,90,90,0.75) 0%, rgba(130,130,130,0.2) 55%, rgba(150,150,150,0) 75%)",
                 filter: "blur(6px)",
               }}
@@ -1382,33 +1618,180 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
           </div>
         </div>
 
-        {/* ── Shop popup card ───────────────────────────────────────────── */}
+        {/* ── Gift Box Card — replaced by sky text labels above each shop ── */}
         <AnimatePresence>
-          {currentShop && cardOpen && (
+          {false && currentShop && cardOpen && (
             <motion.div
-              className="absolute z-20 bg-white/96 backdrop-blur-sm rounded-2xl shadow-2xl p-4 w-[260px]"
-              style={{ top: 72, right: CAR_RIGHT_OFFSET + 120 }}
-              initial={{ opacity: 0, scale: 0.8, y: 8 }}
-              animate={stopFx?.shopId === currentShop.id
-                ? { opacity: 1, scale: [1, 1.08, 1], y: [0, -4, 0], rotate: [0, -0.8, 0.8, 0] }
-                : { opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.8, y: 8 }}
-              transition={{ duration: 0.55 }}
+              className="absolute z-20"
+              style={{ left: 178, top: 44, width: 390 }}
+              initial={{ opacity: 0, y: -60, scale: 0.7, rotate: -4 }}
+              animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }}
+              exit={{ opacity: 0, y: -50, scale: 0.75, rotate: 3 }}
+              transition={{ type: "spring", damping: 18, stiffness: 260 }}
               dir="rtl"
             >
-              <button onClick={() => setCardOpen(false)}
-                className="absolute top-2 left-3 text-stone-400 hover:text-stone-600 text-xl leading-none">×</button>
-              <div className="text-center">
-                <div className="text-3xl mb-1">🎁</div>
-                <p className="text-xs text-brand-accent font-bold mb-1">{currentShop.businessName}</p>
-                <h3 className="font-display text-lg leading-tight mb-2">{currentShop.giftName}</h3>
-                <p className="text-xs text-stone-500 mb-3 line-clamp-2 leading-relaxed">{currentShop.giftDescription}</p>
-                {collected.has(currentShop.id)
-                  ? <div className="bg-green-100 text-green-700 rounded-full px-4 py-2 text-sm font-bold">✓ נאספה!</div>
-                  : <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
-                      עצרי ליד הבית כדי להוסיף את המתנה לסל ✨
-                    </div>
-                }
+
+
+
+
+
+
+              {/* ── Floating sparkles ── */}
+              {[
+                { x: "15%", delay: 0,    dur: 2.1, size: 10, char: "✦" },
+                { x: "80%", delay: 0.5,  dur: 1.8, size: 8,  char: "★" },
+                { x: "50%", delay: 1.1,  dur: 2.4, size: 12, char: "✦" },
+                { x: "5%",  delay: 0.8,  dur: 1.6, size: 7,  char: "◆" },
+                { x: "92%", delay: 1.5,  dur: 2.0, size: 9,  char: "✦" },
+              ].map((s, i) => (
+                <motion.div key={i} className="absolute pointer-events-none text-amber-400 select-none"
+                  style={{ left: s.x, top: -24, fontSize: s.size, zIndex: 30 }}
+                  animate={{ y: [-10, -30, -10], opacity: [0.6, 1, 0.6], scale: [0.8, 1.3, 0.8] }}
+                  transition={{ duration: s.dur, delay: s.delay, repeat: Infinity, ease: "easeInOut" }}
+                >{s.char}</motion.div>
+              ))}
+
+              {/* ── Bow ── */}
+              <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none" style={{ top: -28, zIndex: 25 }}>
+                <div className="absolute" style={{ left: -28, top: 6, width: 30, height: 18,
+                  background: "linear-gradient(135deg,#f59e0b,#fcd34d)",
+                  borderRadius: "50% 0 0 50%",
+                  transform: "rotate(-20deg)",
+                  boxShadow: "inset 0 2px 4px rgba(0,0,0,0.25)" }} />
+                <div className="absolute" style={{ right: -28, top: 6, width: 30, height: 18,
+                  background: "linear-gradient(225deg,#f59e0b,#fcd34d)",
+                  borderRadius: "0 50% 50% 0",
+                  transform: "rotate(20deg)",
+                  boxShadow: "inset 0 2px 4px rgba(0,0,0,0.25)" }} />
+                <div className="absolute" style={{ left: -20, top: 18, width: 22, height: 12,
+                  background: "linear-gradient(135deg,#d97706,#f59e0b)",
+                  borderRadius: "0 0 6px 6px",
+                  transform: "rotate(-10deg)" }} />
+                <div className="absolute" style={{ right: -20, top: 18, width: 22, height: 12,
+                  background: "linear-gradient(225deg,#d97706,#f59e0b)",
+                  borderRadius: "0 0 6px 6px",
+                  transform: "rotate(10deg)" }} />
+                <motion.div style={{ width: 18, height: 18, borderRadius: "50%",
+                  background: "radial-gradient(circle at 35% 35%,#fde68a,#d97706)",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+                  position: "relative", zIndex: 2 }}
+                  animate={{ scale: [1, 1.15, 1] }}
+                  transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+                />
+              </div>
+
+              {/* ── Pulsing glow ring ── */}
+              <motion.div className="absolute inset-0 rounded-3xl pointer-events-none"
+                animate={{ boxShadow: [
+                  "0 0 0 2px rgba(245,158,11,0.4), 0 8px 40px rgba(212,163,115,0.3)",
+                  "0 0 0 5px rgba(245,158,11,0.7), 0 12px 60px rgba(212,163,115,0.55)",
+                  "0 0 0 2px rgba(245,158,11,0.4), 0 8px 40px rgba(212,163,115,0.3)",
+                ]}}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              />
+
+              {/* ── Box body ── */}
+              <div className="relative rounded-3xl overflow-hidden mt-5"
+                style={{ background: "linear-gradient(160deg,#1a0f00 0%,#2d1a05 40%,#3b2208 70%,#1a1000 100%)" }}>
+
+                {/* ribbon horizontal stripe */}
+                <div className="absolute inset-x-0 pointer-events-none" style={{ top: 0, height: "100%", zIndex: 1 }}>
+                  <div className="absolute inset-y-0 left-1/2 -translate-x-1/2" style={{ width: 36,
+                    background: "linear-gradient(180deg,rgba(245,158,11,0.18) 0%,rgba(253,211,77,0.28) 50%,rgba(245,158,11,0.18) 100%)",
+                    borderLeft: "1px solid rgba(253,211,77,0.25)",
+                    borderRight: "1px solid rgba(253,211,77,0.25)" }} />
+                </div>
+
+                {/* shimmer sweep */}
+                <motion.div className="absolute inset-0 pointer-events-none" style={{ zIndex: 2,
+                  background: "linear-gradient(105deg,transparent 30%,rgba(253,211,77,0.07) 50%,transparent 70%)" }}
+                  animate={{ x: ["-100%", "200%"] }}
+                  transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", repeatDelay: 1.5 }}
+                />
+
+                {/* top gold stripe */}
+                <div className="h-1.5 w-full relative z-10"
+                  style={{ background: "linear-gradient(90deg,#92400e,#f59e0b,#fde68a,#f59e0b,#92400e)" }} />
+
+                {/* logo + name */}
+                <div className="relative z-10 flex items-center gap-4 px-5 pt-4 pb-3">
+                  <motion.div className="shrink-0 rounded-2xl overflow-hidden bg-white"
+                    style={{ width: 80, height: 80, boxShadow: "0 4px 20px rgba(0,0,0,0.6), 0 0 0 2px rgba(245,158,11,0.4)" }}
+                    animate={{ boxShadow: [
+                      "0 4px 20px rgba(0,0,0,0.6), 0 0 0 2px rgba(245,158,11,0.3)",
+                      "0 4px 20px rgba(0,0,0,0.6), 0 0 0 3px rgba(245,158,11,0.7)",
+                      "0 4px 20px rgba(0,0,0,0.6), 0 0 0 2px rgba(245,158,11,0.3)",
+                    ]}}
+                    transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}>
+                    {currentShop.logoUrl
+                      ? <img src={currentShop.logoUrl} alt={currentShop.businessName}
+                          className="w-full h-full object-contain p-1.5" draggable={false} />
+                      : <div className="w-full h-full flex items-center justify-center text-3xl">🏪</div>
+                    }
+                  </motion.div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-sm leading-tight mb-1.5 truncate"
+                      style={{ color: "#fde68a", textShadow: "0 1px 8px rgba(245,158,11,0.6)" }}>
+                      {currentShop.businessName}
+                    </p>
+                    <motion.div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1"
+                      style={{ background: "linear-gradient(90deg,rgba(146,64,14,0.7),rgba(217,119,6,0.7))",
+                        border: "1px solid rgba(253,211,77,0.4)" }}
+                      animate={{ scale: [1, 1.04, 1] }}
+                      transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}>
+                      <span className="text-sm">🎁</span>
+                      <span className="text-amber-200 text-[11px] font-bold">מתנה חינמית!</span>
+                    </motion.div>
+                  </div>
+                  <button onClick={() => setCardOpen(false)}
+                    className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-stone-400 hover:text-white hover:bg-white/10 transition-all text-base leading-none"
+                    style={{ border: "1px solid rgba(255,255,255,0.15)" }}>×</button>
+                </div>
+
+                {/* divider with diamond */}
+                <div className="relative z-10 mx-5 flex items-center gap-2 my-1">
+                  <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg,transparent,rgba(245,158,11,0.5))" }} />
+                  <div className="text-amber-500 text-xs">◆</div>
+                  <div className="flex-1 h-px" style={{ background: "linear-gradient(270deg,transparent,rgba(245,158,11,0.5))" }} />
+                </div>
+
+                {/* gift name */}
+                <div className="relative z-10 px-5 pt-2 pb-1">
+                  <h3 className="font-bold text-lg leading-snug" style={{ color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,0.8)" }}>
+                    {currentShop.giftName}
+                  </h3>
+                </div>
+
+                {/* description */}
+                <div className="relative z-10 px-5 pb-3">
+                  <p className="text-sm leading-relaxed" style={{ color: "#d6c4a0" }}>
+                    {currentShop.giftDescription}
+                  </p>
+                </div>
+
+                {/* status */}
+                <div className="relative z-10 px-5 pb-5">
+                  {collected.has(currentShop.id)
+                    ? <motion.div className="flex items-center justify-center gap-2 rounded-2xl py-2.5 text-sm font-bold"
+                        style={{ background: "linear-gradient(90deg,#14532d,#166534,#14532d)", color: "#bbf7d0",
+                          boxShadow: "0 0 20px rgba(34,197,94,0.3)", border: "1px solid rgba(74,222,128,0.3)" }}
+                        animate={{ scale: [1, 1.03, 1] }}
+                        transition={{ duration: 1.5, repeat: Infinity }}>
+                        <span>✓</span><span>המתנה נאספה!</span>
+                      </motion.div>
+                    : <div className="flex items-center gap-2 rounded-2xl px-4 py-2.5"
+                        style={{ background: "rgba(146,64,14,0.35)", border: "1px solid rgba(245,158,11,0.4)" }}>
+                        <motion.span className="text-base"
+                          animate={{ rotate: [0, 15, -15, 0], scale: [1, 1.2, 1] }}
+                          transition={{ duration: 1.4, repeat: Infinity }}>✨</motion.span>
+                        <span className="text-amber-200 text-xs font-semibold">עצרי ליד הבית כדי להוסיף לסל</span>
+                      </div>
+                  }
+                </div>
+
+                {/* bottom gold stripe */}
+                <div className="h-1.5 w-full relative z-10"
+                  style={{ background: "linear-gradient(90deg,#92400e,#f59e0b,#fde68a,#f59e0b,#92400e)" }} />
               </div>
             </motion.div>
           )}
@@ -1422,7 +1805,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
 
         {/* ── Left side panel: Timer + Speedometer + Checkout ──────────── */}
         <div
-          className="absolute z-30 flex flex-col items-center py-4 px-3"
+          className="absolute z-30 flex flex-col items-center justify-end py-2 px-3"
           style={{
             left: 0, top: 0, bottom: 0, width: 168,
             background: "rgba(8,10,22,0.72)",
@@ -1431,8 +1814,17 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
             boxShadow: "4px 0 32px rgba(0,0,0,0.45)",
           }}
         >
+          {/* scaled wrapper — shrinks all content to fit any screen height */}
+          <div style={{
+            transform: `scale(${Math.min(1, (outerH / gameScale - 16) / (5 * 144 + 4 * 12 + 12 + 80 + 40))})`,
+            transformOrigin: "bottom center",
+            width: 144,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+          }}>
           {/* ─ Squares ────────────────────────────────────────────────── */}
-          <div className="flex flex-col items-center gap-3 mt-auto mb-3">
+          <div className="flex flex-col items-center gap-3 mb-3">
           {/* ─ Timer ──────────────────────────────────────────────────── */}
           <motion.div
             initial={{ opacity: 0, y: -16 }}
@@ -1541,12 +1933,68 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
               </span>
             )}
           </motion.button>
+
+          {/* ─ Contact square ─────────────────────────────────────── */}
+          <motion.button
+            onClick={() => { setShowContact(true); setContactSent(false); }}
+            dir="rtl"
+            className="flex flex-col items-center justify-center gap-2 rounded-2xl"
+            style={{
+              width: 144, height: 144,
+              background: "linear-gradient(135deg, rgba(109,40,217,0.55) 0%, rgba(219,39,119,0.45) 100%)",
+              border: "1.5px solid rgba(255,255,255,0.28)",
+              boxShadow: "0 4px 28px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.10)",
+              backdropFilter: "blur(14px)",
+              color: "white",
+              cursor: "pointer",
+            }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <span style={{ fontSize: 52, lineHeight: 1, filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.5))" }}>✉️</span>
+            <span className="font-extrabold text-center leading-tight" style={{ fontSize: 13, color: "white", textShadow: "0 1px 6px rgba(0,0,0,0.6)" }}>בעל עסק?<br />צור קשר</span>
+          </motion.button>
           </div>{/* end squares wrapper */}
+
+          {/* ─ Sponsor badge ──────────────────────────────────────────── */}
+          <div
+            className="flex flex-col items-center gap-1.5 pb-2"
+            dir="rtl"
+          >
+            <div
+              className="flex flex-col items-center gap-1.5 px-3 py-2"
+              style={{
+                width: 144,
+                background: "rgba(255,255,255,0.92)",
+                borderRadius: 14,
+                boxShadow: "0 2px 10px rgba(0,0,0,0.25)",
+              }}
+            >
+              <span style={{ fontSize: 9, color: "rgba(0,0,0,0.45)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                היריד בחסות
+              </span>
+              <img
+                src="/logos/menifa.png"
+                alt="מניפה לתנופה"
+                draggable={false}
+                style={{ width: 90, height: "auto", objectFit: "contain" }}
+              />
+            </div>
+          </div>
+
+          {/* ─ Built-by credit ────────────────────────────────────────── */}
+          <div className="pb-3 flex flex-col items-center" dir="rtl">
+            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", textAlign: "center", lineHeight: 1.6 }}>
+              עיצוב ופיתוח<br />
+              <span style={{ color: "rgba(255,255,255,0.75)", fontWeight: 700, fontSize: 11 }}>דבורה זילברשטיין</span>
+            </span>
+          </div>
+          </div>{/* end scaled wrapper */}
         </div>{/* end left panel */}
 
         {/* ── Drive controls ─────────────────────────────────────────────── */}
         {!showWelcome && (
-        <div className="absolute z-30 left-1/2 -translate-x-1/2" style={{ bottom: 136 }} dir="rtl">
+        <div className="absolute z-30 left-1/2 -translate-x-1/2" style={{ bottom: 108 }} dir="rtl">
           <div className="bg-white/90 backdrop-blur-md rounded-2xl p-2 shadow-xl border border-white/70">
             <div className="flex items-center gap-2">
               <Button
@@ -1587,26 +2035,26 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
         {/* ── Welcome overlay ──────────────────────────────────────────────── */}
         <AnimatePresence>
           {showWelcome && (
-            <WelcomeOverlay onStart={() => setShowWelcome(false)} />
+            <WelcomeOverlay onStart={() => setShowWelcome(false)} onContact={() => { setShowContact(true); setContactSent(false); }} />
           )}
         </AnimatePresence>
         </div>{/* end inner scaled canvas */}
       </div>{/* end outer clip */}
 
       {/* ── HUD — progress bar ─────────────────────────────────────────────── */}
-      <div className="bg-brand-primary text-white px-4 py-3 flex items-center justify-between gap-3" dir="rtl">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <span className="font-bold text-sm whitespace-nowrap">{collected.size} / {shops.length} מתנות נאספו</span>
+      <div className="bg-brand-primary text-white px-3 py-1.5 flex items-center justify-between gap-2" dir="rtl" style={{ minHeight: 0 }}>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="font-bold text-xs whitespace-nowrap">{collected.size} / {shops.length} מתנות נאספו</span>
           {collected.size === shops.length && shops.length > 0 && (
-            <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-yellow-400 font-bold text-sm">
+            <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-yellow-400 font-bold text-xs">
               🎉 כל המתנות נאספו!
             </motion.span>
           )}
         </div>
-        <div className="flex gap-2 flex-wrap justify-end flex-1">
+        <div className="flex gap-1.5 flex-wrap justify-end flex-1 overflow-hidden" style={{ maxHeight: 20 }}>
           {shops.map((shop, i) => (
             <motion.div key={shop.id}
-              className={`w-4 h-4 rounded-full border-2 transition-colors ${
+              className={`w-3 h-3 rounded-full border transition-colors ${
                 collected.has(shop.id) ? "bg-yellow-400 border-yellow-300"
                 : i === currentIdx ? "bg-white/50 border-white"
                 : "bg-white/20 border-white/30"}`}
@@ -1621,7 +2069,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             onClick={() => { setIsDriving(false); setShowCheckoutConfirm(true); }}
-            className="flex-shrink-0 bg-yellow-400 hover:bg-yellow-300 text-stone-900 font-extrabold text-sm px-4 py-2 rounded-full shadow-lg transition-all whitespace-nowrap"
+            className="flex-shrink-0 bg-yellow-400 hover:bg-yellow-300 text-stone-900 font-extrabold text-xs px-3 py-1 rounded-full shadow-lg transition-all whitespace-nowrap"
             dir="rtl"
           >
             🛒 יאלה קחי אותי למשלחן
@@ -1674,6 +2122,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
           <FinaleDialog
             collectedCount={collected.size}
             shopIds={Array.from(collected)}
+            allShops={shops}
             onClose={() => { setShowFinale(false); setCurrentIdx(0); }}
           />
         )}

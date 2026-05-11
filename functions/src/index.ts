@@ -45,6 +45,9 @@ export const saveLead = functions.https.onRequest((req, res) => {
     const { shopId, name, email } = req.body as { shopId: string; name: string; email: string };
     if (!shopId || !name || !email) { res.status(400).json({ error: "Missing fields" }); return; }
     try {
+      const existing = await db.collection(`fairs/${FAIR}/shops/${shopId}/leads`)
+        .where("email", "==", email).limit(1).get();
+      if (!existing.empty) { res.status(409).json({ ok: false, error: "already_registered" }); return; }
       await db.collection(`fairs/${FAIR}/shops/${shopId}/leads`).add({
         shopId,
         name,

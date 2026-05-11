@@ -22,6 +22,7 @@ export interface Shop {
   giftName: string;
   giftDescription: string;
   giftImageUrl?: string;
+  giftLink?: string;
   logoUrl?: string;
   leadsCount: number;
   businessName?: string; // Denormalized for easy display
