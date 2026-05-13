@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "./lib/AuthContext";
 import { auth, db } from "./lib/firebase";
 import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
-import { collection, query, onSnapshot, where, addDoc, serverTimestamp, writeBatch, doc, getDocs, limit } from "firebase/firestore";
+import { collection, query, onSnapshot, where, addDoc, serverTimestamp } from "firebase/firestore";
 import { Shop, Lead } from "./types";
 import GENERATED_SHOPS from "./shops-data";
 import { toast } from "sonner";
@@ -258,20 +258,29 @@ function GiftClaimDialog({ shop, onClose, onClaimed }: {
     e.preventDefault();
     setBusy(true);
     try {
-      const dupCheck = await getDocs(
-        query(collection(db, "fairs", "main_fair", "shops", shop.id, "leads"), where("email", "==", form.email), limit(1))
-      );
-      if (!dupCheck.empty) {
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shopId: shop.id,
+          name: form.name.trim(),
+          email: form.email.trim(),
+          giftName: shop.giftName,
+          businessName: shop.businessName,
+        }),
+      });
+      const json = await res.json().catch(() => null) as { ok?: boolean; error?: string } | null;
+
+      if (res.status === 409 || json?.error === "already_registered") {
         toast.info("כבר נרשמת למתנה זו 😊", { description: "האימייל הזה כבר רשום לחנות הזו." });
         onClaimed(shop.id);
         return;
       }
-      await addDoc(collection(db, "fairs", "main_fair", "shops", shop.id, "leads"), {
-        shopId: shop.id,
-        name: form.name,
-        email: form.email,
-        claimedAt: serverTimestamp(),
-      });
+
+      if (!res.ok || json?.ok === false) {
+        throw new Error(json?.error ?? `שגיאת שרת (${res.status})`);
+      }
+
       toast.success("המתנה בדרך אלייך! 🎉", { description: "פרטי המתנה נשלחו לאימייל שלך." });
       onClaimed(shop.id);
     } catch (err: unknown) {
@@ -339,8 +348,8 @@ function GiftClaimDialog({ shop, onClose, onClaimed }: {
 }
 
 // ─── FinaleDialog ─────────────────────────────────────────────────────────────
-function FinaleDialog({ collectedCount, shopIds, allShops, onClose }: {
-  collectedCount: number; shopIds: string[]; allShops: Shop[]; onClose: () => void;
+function FinaleDialog({ collectedCount, shopIds, allShops, onClose, refSource }: {
+  collectedCount: number; shopIds: string[]; allShops: Shop[]; onClose: () => void; refSource?: string;
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -362,19 +371,23 @@ function FinaleDialog({ collectedCount, shopIds, allShops, onClose }: {
     e.preventDefault();
     setBusy(true);
     try {
-      const ts = serverTimestamp();
-      const batch = writeBatch(db);
-
       const allIds = [...shopIds, ...Array.from(extraIds)];
-      const finalRef = doc(collection(db, "fairs", "main_fair", "finale_leads"));
-      batch.set(finalRef, { name, email, shopIds: allIds, claimedAt: ts });
+      const res = await fetch("/api/finale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          shopIds: allIds,
+          ...(refSource ? { ref: refSource } : {}),
+        }),
+      });
+      const json = await res.json().catch(() => null) as { ok?: boolean; error?: string } | null;
 
-      for (const shopId of allIds) {
-        const leadRef = doc(collection(db, "fairs", "main_fair", "shops", shopId, "leads"));
-        batch.set(leadRef, { shopId, name, email, claimedAt: ts });
+      if (!res.ok || json?.ok === false) {
+        throw new Error(json?.error ?? `שגיאת שרת (${res.status})`);
       }
 
-      await batch.commit();
       setSent(true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -386,12 +399,20 @@ function FinaleDialog({ collectedCount, shopIds, allShops, onClose }: {
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto py-4 notranslate"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       style={{ background: "radial-gradient(ellipse at 50% 60%, #7c3aed88 0%, #1e1b4b99 60%, #000000cc 100%)" }}
+      translate="no"
     >
+      {/* X button — fixed to screen, always visible */}
+      <button
+        onClick={onClose}
+        className="fixed top-4 left-4 z-[60] w-10 h-10 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/40 text-white text-2xl font-bold leading-none transition-colors shadow-lg"
+        aria-label="סגור"
+      >×</button>
+
       {/* floating confetti */}
       {CONFETTI.map((emoji, i) => (
         <motion.span
@@ -494,6 +515,8 @@ function FinaleDialog({ collectedCount, shopIds, allShops, onClose }: {
                   value={name}
                   onChange={e => setName(e.target.value)}
                   dir="rtl"
+                  autoComplete="name"
+                  spellCheck={false}
                 />
                 <Input
                   required
@@ -530,12 +553,20 @@ function FinaleDialog({ collectedCount, shopIds, allShops, onClose }: {
                   type="submit"
                   disabled={busy || !agreed}
                   className="w-full py-4 rounded-xl font-extrabold text-white text-lg shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
-                  style={{ background: "linear-gradient(90deg, #7c3aed, #db2777)" }}
+                  style={{ background: "linear-gradient(90deg, #5A5A40, #D4A373)" }}
                   whileHover={agreed ? { scale: 1.03 } : {}}
                   whileTap={agreed ? { scale: 0.97 } : {}}
                 >
                   {busy ? "שולחת..." : "שלחו לי את המתנות! 🚀"}
                 </motion.button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="block mx-auto mt-3 px-5 py-2.5 rounded-xl font-bold text-white text-sm transition-opacity hover:opacity-80"
+                  style={{ background: "linear-gradient(90deg, #5A5A40, #D4A373)" }}
+                >
+                  אני רוצה לעשות עוד סיבוב ביריד. תחזיר אותי 🚗
+                </button>
               </form>
             </>
           ) : (
@@ -548,14 +579,16 @@ function FinaleDialog({ collectedCount, shopIds, allShops, onClose }: {
               <div className="text-6xl mb-4">🎉</div>
               <h2 className="text-2xl font-extrabold text-stone-800 mb-2">יאללה, בדרך!</h2>
               <p className="text-stone-500 leading-relaxed text-sm mb-6">
-                פרטי כל המתנות נשלחו לאימייל שלך.<br/>
+                הצוות שלנו מטפל בבקשות בתשומת לב.<br/>
+                פרטי המתנות הדיגיטליות יישלחו לאימייל שלך.<br/>
                 תהני מהמתנות! ✨
               </p>
               <button
                 onClick={onClose}
-                className="text-violet-500 font-semibold hover:underline text-sm"
+                className="px-6 py-3 rounded-xl font-bold text-white text-sm transition-opacity hover:opacity-80"
+                style={{ background: "linear-gradient(90deg, #5A5A40, #D4A373)" }}
               >
-                חזרה ליריד
+                אני רוצה לעשות עוד סיבוב ביריד. תחזיר אותי 🚗
               </button>
             </motion.div>
           )}
@@ -740,8 +773,14 @@ function WelcomeOverlay({ onStart, onContact }: { onStart: () => void; onContact
               {/* dots */}
               <div className="flex gap-2 mt-3 justify-end">
                 {steps.map((_, i) => (
-                  <div key={i} className="rounded-full transition-all duration-300"
-                    style={{ width: i === stepIdx ? 20 : 7, height: 7, background: i === stepIdx ? "#e11d48" : "#cbd5e1" }} />
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setStepIdx(i)}
+                    className="rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-pink-400"
+                    style={{ width: i === stepIdx ? 20 : 7, height: 7, background: i === stepIdx ? "#e11d48" : "#cbd5e1", cursor: "pointer", border: 0 }}
+                    aria-label={`מעבר לשלב ${i + 1}`}
+                  />
                 ))}
               </div>
             </div>
@@ -2054,7 +2093,8 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
             collectedCount={collected.size}
             shopIds={Array.from(collected)}
             allShops={shops}
-            onClose={() => { setShowFinale(false); setCurrentIdx(0); }}
+            refSource={new URLSearchParams(window.location.search).get('ref') ?? undefined}
+            onClose={() => { setShowFinale(false); setCurrentIdx(0); setCollected(new Set()); setIsDriving(false); setShowWelcome(true); }}
           />
         )}
       </AnimatePresence>
