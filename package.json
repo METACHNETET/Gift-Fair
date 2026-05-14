@@ -1,6 +1,6 @@
 {
   "name": "react-example",
-  "private": true,
+  "name": "firgift",
   "version": "0.0.0",
   "type": "module",
   "scripts": {
@@ -49,3 +49,4 @@
     "vite": "^6.2.0"
   }
 }
+  "description": "יריד המתנות",
