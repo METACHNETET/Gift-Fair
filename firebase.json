@@ -1,42 +1,63 @@
 {
-  "hosting": {
-    "public": "dist",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "headers": [
-      {
-        "source": "/index.html",
-        "headers": [
-          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-        ]
-      },
-      {
-        "source": "**/*.@(js|css)",
-        "headers": [
-          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
-        ]
-      },
-      {
-        "source": "**/*.@(png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|ttf|otf)",
-        "headers": [
-          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
-        ]
-      }
-    ],
-    "rewrites": [
-      { "source": "/api/shops", "function": "getShops" },
-      { "source": "/api/leads", "function": "saveLead" },
-      { "source": "/api/finale", "function": "saveFinale" },
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
-  },
-  "functions": {
-    "source": "functions"
-  }
+    "hosting":  {
+                    "public":  "dist",
+                    "ignore":  [
+                                   "firebase.json",
+                                   "**/.*",
+                                   "**/node_modules/**"
+                               ],
+                    "headers":  [
+                                    {
+                                        "source":  "/index.html",
+                                        "headers":  [
+                                                        {
+                                                            "key":  "Cache-Control",
+                                                            "value":  "no-cache, no-store, must-revalidate"
+                                                        }
+                                                    ]
+                                    },
+                                    {
+                                        "source":  "**/*.@(js|css)",
+                                        "headers":  [
+                                                        {
+                                                            "key":  "Cache-Control",
+                                                            "value":  "public, max-age=31536000, immutable"
+                                                        }
+                                                    ]
+                                    },
+                                    {
+                                        "source":  "**/*.@(png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|ttf|otf)",
+                                        "headers":  [
+                                                        {
+                                                            "key":  "Cache-Control",
+                                                            "value":  "public, max-age=31536000, immutable"
+                                                        }
+                                                    ]
+                                    }
+                                ],
+                    "rewrites":  [
+                                     {
+                                         "source":  "/api/shops",
+                                         "function":  "getShops"
+                                     },
+                                     {
+                                         "source":  "/api/leads",
+                                         "function":  "saveLead"
+                                     },
+                                     {
+                                         "source":  "/api/finale",
+                                         "function":  "saveFinale"
+                                     },
+                                     {
+                                         "source":  "**",
+                                         "destination":  "/index.html"
+                                     }
+                                 ]
+                },
+    "functions":  {
+                      "source":  "functions"
+                  },
+    "firestore":  {
+                      "rules":  "firestore.rules"
+                  }
 }

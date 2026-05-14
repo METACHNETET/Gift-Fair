@@ -58,8 +58,12 @@ service cloud.firestore {
                    data.name is string && data.name.size() > 1;
           }
 
-          // Only shop owners can see their leads
-          allow read: if isSignedIn() && get(/databases/$(database)/documents/fairs/$(fairId)/shops/$(shopId)).data.businessId == request.auth.uid;
+          function isAdmin() {
+            return isSignedIn() && request.auth.token.admin == true;
+          }
+
+          // Admins or shop owners can see leads
+          allow read: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/fairs/$(fairId)/shops/$(shopId)).data.businessId == request.auth.uid);
           allow create: if true; // Anyone can sign up for a gift
         }
       }

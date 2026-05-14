@@ -2349,7 +2349,7 @@ export default function App() {
           transition={{ repeat: Infinity, duration: 2 }}
           className="text-4xl font-display text-brand-primary"
         >
-          מפליקצית fairgifts...
+          יריד המתנות...
         </motion.div>
       </div>
     );
