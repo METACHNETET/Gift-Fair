@@ -8,7 +8,7 @@ import { Shop } from "./types";
 import { RefreshCw, LogOut } from "lucide-react";
 
 // ─── Admin config ─────────────────────────────────────────────────────────────
-const ADMIN_EMAIL = "d0527181611@gmail.com";
+const ADMIN_EMAILS = ["d0527181611@gmail.com", "dvoraz@schoolframe.net"];
 
 interface ShopWithLeads extends Shop {
   leadCount: number;
@@ -33,7 +33,7 @@ export default function AdminPage() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginBusy, setLoginBusy] = useState(false);
 
-  const isAdmin = user?.email === ADMIN_EMAIL;
+  const isAdmin = !!user?.email && ADMIN_EMAILS.includes(user.email);
 
   const fetchData = useCallback(async () => {
     setFetching(true);
