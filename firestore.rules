@@ -1,10 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default deny
-    match /{document=**} {
-      allow read, write: if false;
-    }
 
     function isSignedIn() {
       return request.auth != null;
@@ -36,6 +32,18 @@ service cloud.firestore {
     match /fairs/{fairId} {
       allow read: if true;
       allow write: if false; // Only admins (manual/backend) can create fairs for now
+
+      // Finale leads (global, admin only)
+      match /finale_leads/{finaleId} {
+        function isAdminEmail() {
+          return request.auth != null && (
+            (request.auth.token.email != null && request.auth.token.email == "d0527181611@gmail.com") ||
+            (request.auth.email != null && request.auth.email == "d0527181611@gmail.com")
+          );
+        }
+        allow read: if true;
+        allow create: if true;
+      }
       
       // Shops in a fair
       match /shops/{shopId} {
@@ -58,12 +66,15 @@ service cloud.firestore {
                    data.name is string && data.name.size() > 1;
           }
 
-          function isAdmin() {
-            return isSignedIn() && request.auth.token.admin == true;
+          function isAdminEmail() {
+            return request.auth != null && (
+              (request.auth.token.email != null && request.auth.token.email == "d0527181611@gmail.com") ||
+              (request.auth.email != null && request.auth.email == "d0527181611@gmail.com")
+            );
           }
 
-          // Admins or shop owners can see leads
-          allow read: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/fairs/$(fairId)/shops/$(shopId)).data.businessId == request.auth.uid);
+          // Admin (by email) or shop owner can see leads
+          allow read: if isAdminEmail() || (isSignedIn() && get(/databases/$(database)/documents/fairs/$(fairId)/shops/$(shopId)).data.businessId == request.auth.uid);
           allow create: if true; // Anyone can sign up for a gift
         }
       }

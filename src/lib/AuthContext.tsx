@@ -13,10 +13,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+
   useEffect(() => {
-    return onAuthStateChanged(auth, (user) => {
+    return onAuthStateChanged(auth, async (user) => {
       setUser(user);
       setLoading(false);
+      if (user) {
+        const token = await user.getIdTokenResult();
+        console.log("user:", user);
+        console.log("token.claims:", token.claims);
+        console.log("user.email:", user.email);
+      } else {
+        console.log("No user is signed in.");
+      }
     });
   }, []);
 

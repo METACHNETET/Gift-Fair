@@ -23,7 +23,7 @@ const shops = [
   { id: "shop-9",  businessName: "רפואת שיניים טבעית" },
   { id: "shop-10", businessName: "חשבונאות ומיסים" },
   { id: "shop-11", businessName: "מלכה זיכרמן - יועצת המערכות" },
-  { id: "shop-12", businessName: "ברטלר דיזיין - עיצוב גרפי ודיגיטל" },
+  { id: "shop-12", businessName: "ברטלר דיזיין - הקמת אתרי מותג אסטרטגיים" },
   { id: "shop-13", businessName: "יהודית רובינשטיין - גרפולוגית" },
   { id: "shop-14", businessName: "אוירון" },
   { id: "shop-15", businessName: "מרים נוביק - הוראה באנרגיה אחרת" },

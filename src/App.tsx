@@ -348,11 +348,11 @@ function GiftClaimDialog({ shop, onClose, onClaimed }: {
 }
 
 // ─── FinaleDialog ─────────────────────────────────────────────────────────────
-function FinaleDialog({ collectedCount, shopIds, allShops, onClose, refSource }: {
-  collectedCount: number; shopIds: string[]; allShops: Shop[]; onClose: () => void; refSource?: string;
+function FinaleDialog({ collectedCount, shopIds, allShops, onClose, refSource, userEmail }: {
+  collectedCount: number; shopIds: string[]; allShops: Shop[]; onClose: () => void; refSource?: string; userEmail?: string;
 }) {
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(userEmail || "");
   const [agreed, setAgreed] = useState(false);
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -1074,8 +1074,10 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   const [stopFx, setStopFx] = useState<{ shopId: string; nonce: number } | null>(null);
   const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
-  const [showContact, setShowContact] = useState(false);
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
   const [contactSent, setContactSent] = useState(false);
+  const [showContact, setShowContact] = useState(false);
   const showWelcomeRef = useRef(showWelcome);
   useEffect(() => { showWelcomeRef.current = showWelcome; }, [showWelcome]);
 
@@ -1944,10 +1946,10 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
                 היריד בחסות
               </span>
               <img
-                src="/logos/menifa.png"
-                alt="מניפה לתנופה"
+                src="/logos/hafsakat10.png"
+                alt="הפסקת 10 מבית מניפה"
                 draggable={false}
-                style={{ width: 90, height: "auto", objectFit: "contain" }}
+                style={{ width: 120, height: "auto", objectFit: "contain" }}
               />
             </div>
           </div>
@@ -2005,7 +2007,69 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
         {/* ── Welcome overlay ──────────────────────────────────────────────── */}
         <AnimatePresence>
           {showWelcome && (
-            <WelcomeOverlay onStart={() => setShowWelcome(false)} onContact={() => { setShowContact(true); setContactSent(false); }} />
+            <WelcomeOverlay 
+              onStart={() => {
+                setShowWelcome(false);
+                setShowEmailDialog(true);
+              }} 
+              onContact={() => { setShowContact(true); setContactSent(false); }} 
+            />
+          )}
+        </AnimatePresence>
+
+        {/* ── Email Dialog ──────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {showEmailDialog && (
+            <motion.div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={e => e.target === e.currentTarget && setShowEmailDialog(false)}
+            >
+              <motion.div
+                className="bg-white rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl"
+                initial={{ scale: 0.85, opacity: 0, y: 30 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.85, opacity: 0, y: 30 }}
+                transition={{ type: "spring", damping: 22, stiffness: 300 }}
+                dir="rtl"
+              >
+                <h2 className="text-2xl font-extrabold text-stone-800 mb-2">רגע – לפני שנתחיל</h2>
+                <p className="text-stone-700 text-base mb-5">לאיפה תרצה שאשלח לך את המתנות?</p>
+                <form onSubmit={async e => {
+                  e.preventDefault();
+                  setShowEmailDialog(false);
+                  if (userEmail.trim()) {
+                    try {
+                      await fetch("/api/leads", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ email: userEmail.trim() })
+                      });
+                    } catch (err) {
+                      // אפשר להוסיף טוסט שגיאה אם רוצים
+                    }
+                  }
+                }} className="space-y-4">
+                  <div>
+                    <label className="text-sm font-semibold block mb-1">אימייל (לא חובה)</label>
+                    <Input
+                      type="email"
+                      placeholder="example@email.com"
+                      className="rounded-xl"
+                      dir="ltr"
+                      value={userEmail}
+                      onChange={e => setUserEmail(e.target.value)}
+                    />
+                  </div>
+                  <Button type="submit" className="w-full rounded-xl py-3 font-bold text-base bg-violet-600 hover:bg-violet-700 text-white">
+                    יאללה, בואו נתחיל!
+                  </Button>
+                  <Button type="button" variant="outline" className="w-full rounded-xl py-3 font-bold text-base mt-2" onClick={() => setShowEmailDialog(false)}>
+                    דלג
+                  </Button>
+                </form>
+              </motion.div>
+            </motion.div>
           )}
         </AnimatePresence>
         </div>{/* end inner scaled canvas */}
@@ -2094,6 +2158,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
             shopIds={Array.from(collected)}
             allShops={shops}
             refSource={new URLSearchParams(window.location.search).get('ref') ?? undefined}
+            userEmail={userEmail}
             onClose={() => { setShowFinale(false); setCurrentIdx(0); setCollected(new Set()); setIsDriving(false); setShowWelcome(true); }}
           />
         )}
