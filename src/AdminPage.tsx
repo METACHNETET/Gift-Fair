@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "./lib/AuthContext";
 import { auth, db } from "./lib/firebase";
-import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
-import { collection, getDocs, query, getCountFromServer, orderBy } from "firebase/firestore";
+import { signInWithPopup, GoogleAuthProvider, signOut, signInWithEmailAndPassword } from "firebase/auth";
+import { collection, getDocsFromServer, query, getCountFromServer, orderBy } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Shop } from "./types";
 import { RefreshCw, LogOut } from "lucide-react";
@@ -26,24 +26,34 @@ export default function AdminPage() {
   const [refStats, setRefStats] = useState<RefStat[]>([]);
   const [activeTab, setActiveTab] = useState<'shops' | 'refs'>('shops');
   const [fetching, setFetching] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginBusy, setLoginBusy] = useState(false);
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 
   const fetchData = useCallback(async () => {
     setFetching(true);
+    setFetchError(null);
     try {
       const [shopsSnap, finaleSnap] = await Promise.all([
-        getDocs(collection(db, "fairs", "main_fair", "shops")),
-        getDocs(query(collection(db, "fairs", "main_fair", "finale_leads"), orderBy("claimedAt", "desc"))),
+        getDocsFromServer(collection(db, "fairs", "main_fair", "shops")),
+        getDocsFromServer(query(collection(db, "fairs", "main_fair", "finale_leads"), orderBy("claimedAt", "desc"))),
       ]);
 
       const results = await Promise.all(
         shopsSnap.docs.map(async (shopDoc) => {
           const shop = { id: shopDoc.id, ...shopDoc.data() } as Shop;
-          const leadsQ = query(collection(db, "fairs", "main_fair", "shops", shop.id, "leads"));
-          const countSnap = await getCountFromServer(leadsQ);
-          return { ...shop, leadCount: countSnap.data().count };
+          try {
+            const leadsQ = query(collection(db, "fairs", "main_fair", "shops", shop.id, "leads"));
+            const countSnap = await getCountFromServer(leadsQ);
+            return { ...shop, leadCount: countSnap.data().count };
+          } catch {
+            return { ...shop, leadCount: 0 };
+          }
         })
       );
       results.sort((a, b) => b.leadCount - a.leadCount);
@@ -63,6 +73,7 @@ export default function AdminPage() {
       setLastUpdated(new Date());
     } catch (err) {
       console.error("fetchData failed:", err);
+      setFetchError(err instanceof Error ? err.message : "שגיאה בטעינת הנתונים");
     } finally {
       setFetching(false);
     }
@@ -73,7 +84,28 @@ export default function AdminPage() {
   }, [isAdmin, fetchData]);
 
   const handleLogin = async () => {
-    await signInWithPopup(auth, new GoogleAuthProvider());
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code;
+      if (code !== "auth/cancelled-popup-request" && code !== "auth/popup-closed-by-user") {
+        console.error("Login failed:", err);
+      }
+    }
+  };
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginBusy(true);
+    setLoginError(null);
+    try {
+      await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+    } catch (err: unknown) {
+      setLoginError("אימייל או סיסמא שגויים");
+      console.error("Email login failed:", err);
+    } finally {
+      setLoginBusy(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -94,11 +126,39 @@ export default function AdminPage() {
   // ── Not logged in ────────────────────────────────────────────────────────────
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center space-y-4 p-8 bg-white rounded-xl shadow">
-          <h1 className="text-2xl font-bold">דשבורד אדמין</h1>
-          <p className="text-gray-500 text-sm">התחבר כדי להמשיך</p>
-          <Button onClick={handleLogin}>התחבר עם Google</Button>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50" dir="rtl">
+        <div className="w-full max-w-sm space-y-6 p-8 bg-white rounded-xl shadow">
+          <h1 className="text-2xl font-bold text-center">דשבורד אדמין</h1>
+          <form onSubmit={handleEmailLogin} className="space-y-3">
+            <input
+              type="email"
+              placeholder="אימייל"
+              value={loginEmail}
+              onChange={e => setLoginEmail(e.target.value)}
+              required
+              dir="ltr"
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+            <input
+              type="password"
+              placeholder="סיסמא"
+              value={loginPassword}
+              onChange={e => setLoginPassword(e.target.value)}
+              required
+              dir="ltr"
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+            {loginError && <p className="text-red-500 text-sm text-center">{loginError}</p>}
+            <Button type="submit" className="w-full" disabled={loginBusy}>
+              {loginBusy ? "מתחבר..." : "כניסה"}
+            </Button>
+          </form>
+          <div className="flex items-center gap-2 text-gray-400 text-xs">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span>או</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+          <Button variant="outline" className="w-full" onClick={handleLogin}>התחבר עם Google</Button>
         </div>
       </div>
     );
@@ -146,6 +206,16 @@ export default function AdminPage() {
             </Button>
           </div>
         </div>
+
+        {/* Error banner */}
+        {fetchError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm flex items-center justify-between">
+            <span>שגיאה בטעינה: {fetchError}</span>
+            <Button size="sm" variant="outline" onClick={fetchData} disabled={fetching}>
+              נסה שוב
+            </Button>
+          </div>
+        )}
 
         {/* Summary card */}
         <div className="grid grid-cols-3 gap-4">
