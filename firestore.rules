@@ -35,12 +35,6 @@ service cloud.firestore {
 
       // Finale leads (global, admin only)
       match /finale_leads/{finaleId} {
-        function isAdminEmail() {
-          return request.auth != null && (
-            (request.auth.token.email != null && request.auth.token.email == "d0527181611@gmail.com") ||
-            (request.auth.email != null && request.auth.email == "d0527181611@gmail.com")
-          );
-        }
         allow read: if true;
         allow create: if true;
       }
@@ -67,10 +61,11 @@ service cloud.firestore {
           }
 
           function isAdminEmail() {
-            return request.auth != null && (
-              (request.auth.token.email != null && request.auth.token.email == "d0527181611@gmail.com") ||
-              (request.auth.email != null && request.auth.email == "d0527181611@gmail.com")
-            );
+            return request.auth != null &&
+              request.auth.token.email != null && (
+                request.auth.token.email == "d0527181611@gmail.com" ||
+                request.auth.token.email == "dvoraz@schoolframe.net"
+              );
           }
 
           // Admin (by email) or shop owner can see leads
