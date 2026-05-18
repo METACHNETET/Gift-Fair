@@ -316,7 +316,7 @@ const SHOPS: Shop[] = [
     giftDescription: "שאלה קטנה: כמה פעמים ביום המח שלך הופך להיות האויב שלך? עם מחשבות של לחץ, מתח, חרדה?? הורידי את המדריך ולמדי 3 אסטרטגיות פשוטות לפיתוח המח החיובי.",
     giftImageUrl: "/gift-birds.png",
     giftLink: "https://8419285.minisite.ms/n/172516",
-    logoUrl: "/logos/michalniazof.png",
+    logoUrl: "/logos/michalnaizof.png",
     leadsCount: 0,
   },
   {
