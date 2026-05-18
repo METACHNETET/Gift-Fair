@@ -27,11 +27,18 @@ interface FinaleLead {
   claimedAt: { seconds: number } | null;
 }
 
+interface ShopInterest {
+  shopId: string;
+  email: string | null;
+  collectedAt: { seconds: number } | null;
+}
+
 // ─── AdminPage ────────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { user, loading } = useAuth();
   const [shops, setShops] = useState<ShopWithLeads[]>([]);
   const [finaleLeads, setFinaleLeads] = useState<FinaleLead[]>([]);
+  const [shopInterests, setShopInterests] = useState<ShopInterest[]>([]);
   const [expandedShopId, setExpandedShopId] = useState<string | null>(null);
   const [refStats, setRefStats] = useState<RefStat[]>([]);
   const [activeTab, setActiveTab] = useState<'shops' | 'refs'>('shops');
@@ -89,6 +96,12 @@ export default function AdminPage() {
         email: d.data().email as string,
         shopIds: (d.data().shopIds as string[] | undefined) ?? [],
         claimedAt: d.data().claimedAt ?? null,
+      })));
+
+      setShopInterests(interestsSnap.docs.map(d => ({
+        shopId: d.data().shopId as string,
+        email: (d.data().email as string | undefined) ?? null,
+        collectedAt: d.data().collectedAt ?? null,
       })));
 
       // group finale_leads by ref
@@ -324,7 +337,23 @@ export default function AdminPage() {
                 <tbody>
                   {shops.map((shop, i) => {
                     const isExpanded = expandedShopId === shop.id;
-                    const shopLeads = finaleLeads.filter((l: FinaleLead) => l.shopIds.includes(shop.id));
+
+                    // Build unified deduped lead list for this shop
+                    type DisplayLead = { name: string; email: string; source: 'finale' | 'interest' };
+                    const seenEmails = new Set<string>();
+                    const displayLeads: DisplayLead[] = [];
+                    finaleLeads.filter((l: FinaleLead) => l.shopIds.includes(shop.id)).forEach((l: FinaleLead) => {
+                      const key = l.email?.toLowerCase();
+                      if (key && seenEmails.has(key)) return;
+                      if (key) seenEmails.add(key);
+                      displayLeads.push({ name: l.name, email: l.email, source: 'finale' });
+                    });
+                    shopInterests.filter((l: ShopInterest) => l.shopId === shop.id).forEach((l: ShopInterest) => {
+                      const key = l.email?.toLowerCase();
+                      if (key && seenEmails.has(key)) return;
+                      if (key) seenEmails.add(key);
+                      displayLeads.push({ name: '', email: l.email ?? '', source: 'interest' });
+                    });
                     return (
                       <React.Fragment key={shop.id}>
                         <tr
@@ -359,13 +388,14 @@ export default function AdminPage() {
                         {isExpanded && (
                           <tr className="bg-blue-50 border-b">
                             <td colSpan={5} className="px-6 pb-4 pt-2">
-                              <div className="text-xs font-semibold text-blue-700 mb-2">נרשמים ({shopLeads.length})</div>
+                              <div className="text-xs font-semibold text-blue-700 mb-2">נרשמים ({displayLeads.length})</div>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-64 overflow-y-auto">
-                                {shopLeads.map((l: FinaleLead, idx: number) => (
+                                {displayLeads.map((l, idx) => (
                                   <div key={idx} className="flex items-center gap-2 text-sm bg-white rounded px-3 py-1.5 shadow-sm">
-                                    <span className="font-medium text-gray-800 truncate">{l.name}</span>
-                                    <span className="text-gray-400">·</span>
-                                    <span className="text-gray-500 truncate" dir="ltr">{l.email}</span>
+                                    {l.name && <span className="font-medium text-gray-800 truncate">{l.name}</span>}
+                                    {l.name && <span className="text-gray-400">·</span>}
+                                    <span className="text-gray-500 truncate" dir="ltr">{l.email || '—'}</span>
+                                    {l.source === 'interest' && <span className="text-xs text-amber-500 shrink-0">עצר</span>}
                                   </div>
                                 ))}
                               </div>
