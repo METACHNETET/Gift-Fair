@@ -1065,6 +1065,9 @@ function ContactForm({ onSent }: { onSent: () => void }) {
 
 // ─── FairLanding — Road Game ─────────────────────────────────────────────────
 function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
+  const _urlParams = new URLSearchParams(window.location.search);
+  const refParam = _urlParams.get('ref') ?? _urlParams.get('utm_source') ?? null;
+
   const [shops, setShops] = useState<Shop[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [collected, setCollected] = useState<Set<string>>(new Set());
@@ -1175,7 +1178,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
       shopId: shop.id,
       businessName: shop.businessName ?? null,
       email: userEmailRef.current.trim() || null,
-      ref: new URLSearchParams(window.location.search).get('ref') ?? null,
+      ref: refParam,
       collectedAt: serverTimestamp(),
     }).catch(err => console.error("[shop_interest] save failed:", err));
   };
@@ -2055,7 +2058,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
                         email: userEmail.trim(),
                         marketingConsent,
                         signedUpAt: serverTimestamp(),
-                        ref: new URLSearchParams(window.location.search).get('ref') ?? null,
+                        ref: refParam,
                       });
                     } catch (err) {
                       console.error("[early_signup] failed:", err);
@@ -2180,7 +2183,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
             collectedCount={collected.size}
             shopIds={Array.from(collected)}
             allShops={shops}
-            refSource={new URLSearchParams(window.location.search).get('ref') ?? undefined}
+            refSource={refParam ?? undefined}
             userEmail={userEmail}
             onClose={() => { setShowFinale(false); setCurrentIdx(0); setCollected(new Set()); setIsDriving(false); setShowWelcome(true); }}
           />
