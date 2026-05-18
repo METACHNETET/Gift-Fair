@@ -38,6 +38,12 @@ service cloud.firestore {
         allow read: if true;
         allow create: if true;
       }
+
+      // Early signups (email dialog at game start)
+      match /early_signups/{signupId} {
+        allow read: if true;
+        allow create: if true;
+      }
       
       // Shops in a fair
       match /shops/{shopId} {

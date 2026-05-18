@@ -1076,6 +1076,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   const [showWelcome, setShowWelcome] = useState(true);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [userEmail, setUserEmail] = useState("");
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const [contactSent, setContactSent] = useState(false);
   const [showContact, setShowContact] = useState(false);
   const showWelcomeRef = useRef(showWelcome);
@@ -2040,13 +2041,14 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
                   setShowEmailDialog(false);
                   if (userEmail.trim()) {
                     try {
-                      await fetch("/api/leads", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ email: userEmail.trim() })
+                      await addDoc(collection(db, "fairs", "main_fair", "early_signups"), {
+                        email: userEmail.trim(),
+                        marketingConsent,
+                        signedUpAt: serverTimestamp(),
+                        ref: new URLSearchParams(window.location.search).get('ref') ?? null,
                       });
                     } catch (err) {
-                      // אפשר להוסיף טוסט שגיאה אם רוצים
+                      console.error("[early_signup] failed:", err);
                     }
                   }
                 }} className="space-y-4">
@@ -2061,6 +2063,17 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
                       onChange={e => setUserEmail(e.target.value)}
                     />
                   </div>
+                  <label className="flex items-start gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={marketingConsent}
+                      onChange={e => setMarketingConsent(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-violet-600"
+                    />
+                    <span className="text-xs text-stone-600 leading-snug">
+                      אני מאשר/ת קבלת עדכונים ומבצעים במייל מ-Gift Fair
+                    </span>
+                  </label>
                   <Button type="submit" className="w-full rounded-xl py-3 font-bold text-base bg-violet-600 hover:bg-violet-700 text-white">
                     יאללה, בואו נתחיל!
                   </Button>
