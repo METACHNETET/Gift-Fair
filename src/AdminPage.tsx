@@ -6,7 +6,7 @@ import { collection, getDocsFromServer, query, orderBy } from "firebase/firestor
 import { Button } from "@/components/ui/button";
 import { Shop } from "./types";
 import GENERATED_SHOPS from "./shops-data";
-import { RefreshCw, LogOut, Download } from "lucide-react";
+import { RefreshCw, LogOut, Download, ChevronDown, ChevronUp } from "lucide-react";
 
 // ─── Admin config ─────────────────────────────────────────────────────────────
 const ADMIN_EMAILS = ["d0527181611@gmail.com", "dvoraz@schoolframe.net"];
@@ -32,6 +32,7 @@ export default function AdminPage() {
   const { user, loading } = useAuth();
   const [shops, setShops] = useState<ShopWithLeads[]>([]);
   const [finaleLeads, setFinaleLeads] = useState<FinaleLead[]>([]);
+  const [expandedShopId, setExpandedShopId] = useState<string | null>(null);
   const [refStats, setRefStats] = useState<RefStat[]>([]);
   const [activeTab, setActiveTab] = useState<'shops' | 'refs'>('shops');
   const [fetching, setFetching] = useState(false);
@@ -306,39 +307,59 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {shops.map((shop, i) => (
-                    <tr key={shop.id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
-                      <td className="p-3 text-gray-400">{i + 1}</td>
-                      <td className="p-3 font-medium">{shop.businessName}</td>
-                      <td className="p-3 text-gray-500 hidden sm:table-cell max-w-xs">
-                        <span className="line-clamp-2">{shop.giftName}</span>
-                      </td>
-                      <td className="p-3 text-center">
-                        <span
-                          className={`inline-block px-3 py-1 rounded-full text-white font-bold text-sm ${
-                            shop.leadCount >= 10
-                              ? "bg-green-500"
-                              : shop.leadCount > 0
-                              ? "bg-blue-500"
-                              : "bg-gray-300"
-                          }`}
+                  {shops.map((shop, i) => {
+                    const isExpanded = expandedShopId === shop.id;
+                    const shopLeads = finaleLeads.filter((l: FinaleLead) => l.shopIds.includes(shop.id));
+                    return (
+                      <React.Fragment key={shop.id}>
+                        <tr
+                          className={`border-b transition-colors ${shop.leadCount > 0 ? "cursor-pointer hover:bg-gray-50" : ""} ${isExpanded ? "bg-blue-50" : ""}`}
+                          onClick={() => shop.leadCount > 0 && setExpandedShopId(isExpanded ? null : shop.id)}
                         >
-                          {shop.leadCount}
-                        </span>
-                      </td>
-                      <td className="p-3 text-center">
-                        {shop.leadCount > 0 && (
-                          <button
-                            onClick={() => downloadShopLeads(shop)}
-                            title="הורד CSV"
-                            className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
-                          >
-                            <Download className="w-4 h-4" />
-                          </button>
+                          <td className="p-3 text-gray-400">{i + 1}</td>
+                          <td className="p-3 font-medium">{shop.businessName}</td>
+                          <td className="p-3 text-gray-500 hidden sm:table-cell max-w-xs">
+                            <span className="line-clamp-2">{shop.giftName}</span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className={`inline-block px-3 py-1 rounded-full text-white font-bold text-sm ${shop.leadCount >= 10 ? "bg-green-500" : shop.leadCount > 0 ? "bg-blue-500" : "bg-gray-300"}`}>
+                              {shop.leadCount}
+                            </span>
+                          </td>
+                          <td className="p-3 text-center" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-center gap-1">
+                              {shop.leadCount > 0 && (
+                                <>
+                                  <button onClick={() => downloadShopLeads(shop)} title="הורד CSV" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                  <button onClick={() => setExpandedShopId(isExpanded ? null : shop.id)} title={isExpanded ? "סגור" : "הצג נרשמים"} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
+                                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="bg-blue-50 border-b">
+                            <td colSpan={5} className="px-6 pb-4 pt-2">
+                              <div className="text-xs font-semibold text-blue-700 mb-2">נרשמים ({shopLeads.length})</div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-64 overflow-y-auto">
+                                {shopLeads.map((l: FinaleLead, idx: number) => (
+                                  <div key={idx} className="flex items-center gap-2 text-sm bg-white rounded px-3 py-1.5 shadow-sm">
+                                    <span className="font-medium text-gray-800 truncate">{l.name}</span>
+                                    <span className="text-gray-400">·</span>
+                                    <span className="text-gray-500 truncate" dir="ltr">{l.email}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                    </tr>
-                  ))}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
