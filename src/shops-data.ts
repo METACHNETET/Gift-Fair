@@ -311,7 +311,7 @@ const SHOPS: Shop[] = [
     id: "shop-23",
     fairId: "main_fair",
     businessId: "biz-23",
-    businessName: "אהבה שלוה הצלחה - מיכל ניאזוף",
+    businessName: "מיכל ניאזוף - ריפוי רגשי ותודעתי",
     giftName: "המדריך לפיתוח אינטליגנציה חיובית",
     giftDescription: "שאלה קטנה: כמה פעמים ביום המח שלך הופך להיות האויב שלך? עם מחשבות של לחץ, מתח, חרדה?? הורידי את המדריך ולמדי 3 אסטרטגיות פשוטות לפיתוח המח החיובי.",
     giftImageUrl: "/gift-birds.png",
