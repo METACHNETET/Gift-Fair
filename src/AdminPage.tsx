@@ -49,22 +49,37 @@ export default function AdminPage() {
     setFetching(true);
     setFetchError(null);
     try {
-      const finaleSnap = await getDocsFromServer(
-        query(collection(db, "fairs", "main_fair", "finale_leads"), orderBy("claimedAt", "desc"))
-      );
+      const [finaleSnap, interestsSnap] = await Promise.all([
+        getDocsFromServer(query(collection(db, "fairs", "main_fair", "finale_leads"), orderBy("claimedAt", "desc"))),
+        getDocsFromServer(collection(db, "fairs", "main_fair", "shop_interests")),
+      ]);
 
-      // Count leads per shop from finale_leads (each doc = one person, shopIds = shops they claimed)
-      const shopLeadCountsMap: Record<string, number> = {};
+      // Per-shop: set of unique emails (+ anonymous counter) from both sources
+      const shopEmailSets: Record<string, Set<string>> = {};
+      const shopAnonCounts: Record<string, number> = {};
+
       finaleSnap.docs.forEach(d => {
+        const email = d.data().email as string | undefined;
         const docShopIds = (d.data().shopIds as string[] | undefined) ?? [];
         docShopIds.forEach(shopId => {
-          shopLeadCountsMap[shopId] = (shopLeadCountsMap[shopId] ?? 0) + 1;
+          if (!shopEmailSets[shopId]) shopEmailSets[shopId] = new Set();
+          if (email) shopEmailSets[shopId].add(email.toLowerCase());
+          else shopAnonCounts[shopId] = (shopAnonCounts[shopId] ?? 0) + 1;
         });
+      });
+
+      interestsSnap.docs.forEach(d => {
+        const shopId = d.data().shopId as string | undefined;
+        const email = d.data().email as string | undefined;
+        if (!shopId) return;
+        if (!shopEmailSets[shopId]) shopEmailSets[shopId] = new Set();
+        if (email) shopEmailSets[shopId].add(email.toLowerCase());
+        else shopAnonCounts[shopId] = (shopAnonCounts[shopId] ?? 0) + 1;
       });
 
       const results: ShopWithLeads[] = GENERATED_SHOPS.map(shop => ({
         ...shop,
-        leadCount: shopLeadCountsMap[shop.id] ?? 0,
+        leadCount: (shopEmailSets[shop.id]?.size ?? 0) + (shopAnonCounts[shop.id] ?? 0),
       }));
       results.sort((a, b) => b.leadCount - a.leadCount);
       setShops(results);
