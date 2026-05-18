@@ -1135,11 +1135,13 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   const isDrivingRef = useRef(isDriving);
   const shopsRef = useRef(shops);
   const currentIdxRef = useRef(currentIdx);
+  const userEmailRef = useRef(userEmail);
 
   useEffect(() => { collectedRef.current = collected; }, [collected]);
   useEffect(() => { isDrivingRef.current = isDriving; }, [isDriving]);
   useEffect(() => { shopsRef.current = shops; }, [shops]);
   useEffect(() => { currentIdxRef.current = currentIdx; }, [currentIdx]);
+  useEffect(() => { userEmailRef.current = userEmail; }, [userEmail]);
 
   // Commit the running segment into equiv ms, then switch speed
   const changeSpeed = (newSpd: number) => {
@@ -1168,6 +1170,14 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
       navigator.vibrate([40, 20, 80]);
     }
+
+    addDoc(collection(db, "fairs", "main_fair", "shop_interests"), {
+      shopId: shop.id,
+      businessName: shop.businessName ?? null,
+      email: userEmailRef.current.trim() || null,
+      ref: new URLSearchParams(window.location.search).get('ref') ?? null,
+      collectedAt: serverTimestamp(),
+    }).catch(err => console.error("[shop_interest] save failed:", err));
   };
 
   const setDriveState = (nextState: boolean) => {

@@ -44,6 +44,12 @@ service cloud.firestore {
         allow read: if true;
         allow create: if true;
       }
+
+      // Shop interests (auto-saved when user stops at a shop)
+      match /shop_interests/{interestId} {
+        allow read: if true;
+        allow create: if true;
+      }
       
       // Shops in a fair
       match /shops/{shopId} {
