@@ -2081,7 +2081,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
                       className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-violet-600"
                     />
                     <span className="text-xs text-stone-600 leading-snug">
-                      אני מאשר/ת קבלת עדכונים ומבצעים במייל מ-Gift Fair
+                      אני מאשרת דיוור מהעסקים — שיוכלו לשלוח לי את המתנות 🙂 ומדבורי זילברשטיין ומניפה לתנופה מנהלות היריד
                     </span>
                   </label>
                   <Button type="submit" className="w-full rounded-xl py-3 font-bold text-base bg-violet-600 hover:bg-violet-700 text-white">
