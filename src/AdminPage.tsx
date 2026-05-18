@@ -2,9 +2,10 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "./lib/AuthContext";
 import { auth, db } from "./lib/firebase";
 import { signInWithPopup, GoogleAuthProvider, signOut, signInWithEmailAndPassword } from "firebase/auth";
-import { collection, getDocsFromServer, query, getCountFromServer, orderBy } from "firebase/firestore";
+import { collection, getDocsFromServer, query, orderBy } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Shop } from "./types";
+import GENERATED_SHOPS from "./shops-data";
 import { RefreshCw, LogOut } from "lucide-react";
 
 // ─── Admin config ─────────────────────────────────────────────────────────────
@@ -39,23 +40,23 @@ export default function AdminPage() {
     setFetching(true);
     setFetchError(null);
     try {
-      const [shopsSnap, finaleSnap] = await Promise.all([
-        getDocsFromServer(collection(db, "fairs", "main_fair", "shops")),
-        getDocsFromServer(query(collection(db, "fairs", "main_fair", "finale_leads"), orderBy("claimedAt", "desc"))),
-      ]);
-
-      const results = await Promise.all(
-        shopsSnap.docs.map(async (shopDoc) => {
-          const shop = { id: shopDoc.id, ...shopDoc.data() } as Shop;
-          try {
-            const leadsQ = query(collection(db, "fairs", "main_fair", "shops", shop.id, "leads"));
-            const countSnap = await getCountFromServer(leadsQ);
-            return { ...shop, leadCount: countSnap.data().count };
-          } catch {
-            return { ...shop, leadCount: 0 };
-          }
-        })
+      const finaleSnap = await getDocsFromServer(
+        query(collection(db, "fairs", "main_fair", "finale_leads"), orderBy("claimedAt", "desc"))
       );
+
+      // Count leads per shop from finale_leads (each doc = one person, shopIds = shops they claimed)
+      const shopLeadCountsMap: Record<string, number> = {};
+      finaleSnap.docs.forEach(d => {
+        const docShopIds = (d.data().shopIds as string[] | undefined) ?? [];
+        docShopIds.forEach(shopId => {
+          shopLeadCountsMap[shopId] = (shopLeadCountsMap[shopId] ?? 0) + 1;
+        });
+      });
+
+      const results: ShopWithLeads[] = GENERATED_SHOPS.map(shop => ({
+        ...shop,
+        leadCount: shopLeadCountsMap[shop.id] ?? 0,
+      }));
       results.sort((a, b) => b.leadCount - a.leadCount);
       setShops(results);
 

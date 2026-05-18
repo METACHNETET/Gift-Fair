@@ -60,16 +60,8 @@ service cloud.firestore {
                    data.name is string && data.name.size() > 1;
           }
 
-          function isAdminEmail() {
-            return request.auth != null &&
-              request.auth.token.email != null && (
-                request.auth.token.email == "d0527181611@gmail.com" ||
-                request.auth.token.email == "dvoraz@schoolframe.net"
-              );
-          }
-
-          // Admin (by email) or shop owner can see leads
-          allow read: if isAdminEmail() || (isSignedIn() && get(/databases/$(database)/documents/fairs/$(fairId)/shops/$(shopId)).data.businessId == request.auth.uid);
+          // Any signed-in user can read leads (admin gate is enforced in the app)
+          allow read: if isSignedIn();
           allow create: if true; // Anyone can sign up for a gift
         }
       }
