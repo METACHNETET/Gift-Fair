@@ -6,7 +6,7 @@ import { collection, getDocsFromServer, query, orderBy } from "firebase/firestor
 import { Button } from "@/components/ui/button";
 import { Shop } from "./types";
 import GENERATED_SHOPS from "./shops-data";
-import { RefreshCw, LogOut } from "lucide-react";
+import { RefreshCw, LogOut, Download } from "lucide-react";
 
 // ─── Admin config ─────────────────────────────────────────────────────────────
 const ADMIN_EMAILS = ["d0527181611@gmail.com", "dvoraz@schoolframe.net"];
@@ -20,10 +20,18 @@ interface RefStat {
   count: number;
 }
 
+interface FinaleLead {
+  name: string;
+  email: string;
+  shopIds: string[];
+  claimedAt: { seconds: number } | null;
+}
+
 // ─── AdminPage ────────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { user, loading } = useAuth();
   const [shops, setShops] = useState<ShopWithLeads[]>([]);
+  const [finaleLeads, setFinaleLeads] = useState<FinaleLead[]>([]);
   const [refStats, setRefStats] = useState<RefStat[]>([]);
   const [activeTab, setActiveTab] = useState<'shops' | 'refs'>('shops');
   const [fetching, setFetching] = useState(false);
@@ -59,6 +67,13 @@ export default function AdminPage() {
       }));
       results.sort((a, b) => b.leadCount - a.leadCount);
       setShops(results);
+
+      setFinaleLeads(finaleSnap.docs.map(d => ({
+        name: d.data().name as string,
+        email: d.data().email as string,
+        shopIds: (d.data().shopIds as string[] | undefined) ?? [],
+        claimedAt: d.data().claimedAt ?? null,
+      })));
 
       // group finale_leads by ref
       const refMap: Record<string, number> = {};
@@ -113,7 +128,25 @@ export default function AdminPage() {
     await signOut(auth);
   };
 
-  const totalLeads = shops.reduce((sum, s) => sum + s.leadCount, 0);
+  const downloadShopLeads = (shop: ShopWithLeads) => {
+    const rows = finaleLeads.filter((l: FinaleLead) => l.shopIds.includes(shop.id));
+    const csv = [
+      "שם,אימייל,תאריך",
+      ...rows.map((l: FinaleLead) => {
+        const date = l.claimedAt ? new Date(l.claimedAt.seconds * 1000).toLocaleDateString("he-IL") : "";
+        return `"${l.name}","${l.email}","${date}"`;
+      }),
+    ].join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `leads-${shop.businessName ?? shop.id}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const totalLeads = shops.reduce((sum: number, s: ShopWithLeads) => sum + s.leadCount, 0);
 
   // ── Loading ──────────────────────────────────────────────────────────────────
   if (loading) {
@@ -269,6 +302,7 @@ export default function AdminPage() {
                     <th className="p-3 text-right font-semibold text-gray-600">עסק</th>
                     <th className="p-3 text-right font-semibold text-gray-600 hidden sm:table-cell">מתנה</th>
                     <th className="p-3 text-center font-semibold text-gray-600 w-20">לידים</th>
+                    <th className="p-3 w-16"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -291,6 +325,17 @@ export default function AdminPage() {
                         >
                           {shop.leadCount}
                         </span>
+                      </td>
+                      <td className="p-3 text-center">
+                        {shop.leadCount > 0 && (
+                          <button
+                            onClick={() => downloadShopLeads(shop)}
+                            title="הורד CSV"
+                            className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
