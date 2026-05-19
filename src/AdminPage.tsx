@@ -78,15 +78,14 @@ export default function AdminPage() {
       interestsSnap.docs.forEach(d => {
         const shopId = d.data().shopId as string | undefined;
         const email = d.data().email as string | undefined;
-        if (!shopId) return;
+        if (!shopId || !email) return; // skip anonymous (no email)
         if (!shopEmailSets[shopId]) shopEmailSets[shopId] = new Set();
-        if (email) shopEmailSets[shopId].add(email.toLowerCase());
-        else shopAnonCounts[shopId] = (shopAnonCounts[shopId] ?? 0) + 1;
+        shopEmailSets[shopId].add(email.toLowerCase());
       });
 
       const results: ShopWithLeads[] = GENERATED_SHOPS.map(shop => ({
         ...shop,
-        leadCount: (shopEmailSets[shop.id]?.size ?? 0) + (shopAnonCounts[shop.id] ?? 0),
+        leadCount: shopEmailSets[shop.id]?.size ?? 0,
       }));
       results.sort((a, b) => b.leadCount - a.leadCount);
       setShops(results);
@@ -348,11 +347,11 @@ export default function AdminPage() {
                       if (key) seenEmails.add(key);
                       displayLeads.push({ name: l.name, email: l.email, source: 'finale' });
                     });
-                    shopInterests.filter((l: ShopInterest) => l.shopId === shop.id).forEach((l: ShopInterest) => {
-                      const key = l.email?.toLowerCase();
-                      if (key && seenEmails.has(key)) return;
-                      if (key) seenEmails.add(key);
-                      displayLeads.push({ name: '', email: l.email ?? '', source: 'interest' });
+                    shopInterests.filter((l: ShopInterest) => l.shopId === shop.id && l.email).forEach((l: ShopInterest) => {
+                      const key = l.email!.toLowerCase();
+                      if (seenEmails.has(key)) return;
+                      seenEmails.add(key);
+                      displayLeads.push({ name: '', email: l.email!, source: 'interest' });
                     });
                     return (
                       <React.Fragment key={shop.id}>

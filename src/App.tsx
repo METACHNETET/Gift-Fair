@@ -1174,13 +1174,16 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
       navigator.vibrate([40, 20, 80]);
     }
 
-    addDoc(collection(db, "fairs", "main_fair", "shop_interests"), {
-      shopId: shop.id,
-      businessName: shop.businessName ?? null,
-      email: userEmailRef.current.trim() || null,
-      ref: refParam,
-      collectedAt: serverTimestamp(),
-    }).catch(err => console.error("[shop_interest] save failed:", err));
+    const email = userEmailRef.current.trim() || null;
+    if (email) {
+      addDoc(collection(db, "fairs", "main_fair", "shop_interests"), {
+        shopId: shop.id,
+        businessName: shop.businessName ?? null,
+        email,
+        ref: refParam,
+        collectedAt: serverTimestamp(),
+      }).catch(err => console.error("[shop_interest] save failed:", err));
+    }
   };
 
   const setDriveState = (nextState: boolean) => {
