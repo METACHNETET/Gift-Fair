@@ -865,26 +865,37 @@ function WelcomeOverlay({ onStart, onContact }: { onStart: () => void; onContact
       </div>
 
       {/* ── Contact button — always accessible ── */}
-      <button
-        onClick={onContact}
-        className="absolute"
-        style={{
-          bottom: 24,
-          right: 24,
-          zIndex: 60,
-          background: "rgba(255,255,255,0.18)",
-          backdropFilter: "blur(10px)",
-          border: "1.5px solid rgba(255,255,255,0.45)",
-          borderRadius: 999,
-          padding: "8px 20px",
-          color: "white",
-          fontWeight: 700,
-          fontSize: 14,
-          cursor: "pointer",
-        }}
-      >
-        ✉️ צור קשר
-      </button>
+      <div className="absolute flex flex-col items-end gap-1" style={{ bottom: 24, right: 24, zIndex: 60 }}>
+        <button
+          onClick={onContact}
+          style={{
+            background: "rgba(255,255,255,0.18)",
+            backdropFilter: "blur(10px)",
+            border: "1.5px solid rgba(255,255,255,0.45)",
+            borderRadius: 999,
+            padding: "8px 20px",
+            color: "white",
+            fontWeight: 700,
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
+          ✉️ בעל עסק? צור קשר
+        </button>
+        <span
+          className="select-all text-center"
+          dir="ltr"
+          style={{
+            fontSize: 12,
+            color: "rgba(255,255,255,0.85)",
+            textShadow: "0 1px 4px rgba(0,0,0,0.5)",
+            fontWeight: 600,
+            letterSpacing: 0.2,
+          }}
+        >
+          dvoraz@schoolframe.net
+        </span>
+      </div>
     </motion.div>
   );
 }
@@ -991,75 +1002,16 @@ function Speedometer({ speed, onSpeedChange }: { speed: number; onSpeedChange: (
 }
 
 // ─── ContactForm ─────────────────────────────────────────────────────────────
-function ContactForm({ onSent }: { onSent: () => void }) {
-  const [form, setForm] = useState({ name: "", email: "", message: "" });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const data = new FormData();
-      data.append("name", form.name);
-      data.append("email", form.email);
-      data.append("message", form.message);
-      data.append("_subject", "פנייה מיריד המתנות");
-      data.append("_replyto", form.email);
-      data.append("_captcha", "false");
-      data.append("_template", "table");
-
-      const res = await fetch("https://formsubmit.co/ajax/d0527181611@gmail.com", {
-        method: "POST",
-        headers: { Accept: "application/json" },
-        body: data,
-      });
-      const json = await res.json().catch(() => null);
-      console.log("FormSubmit response:", res.status, json);
-      if (!res.ok || json?.success !== "true") {
-        throw new Error(json?.message ?? `שגיאת שרת (${res.status})`);
-      }
-      toast.success("ההודעה נשלחה! 🎉", { description: "אחזור אלייך בהקדם 😊" });
-      onSent();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("ContactForm error:", msg);
-      toast.error("שליחה נכשלה", { description: msg, duration: 8000 });
-      setError(msg);
-    } finally {
-      setBusy(false);
-    }
-  };
-
+function ContactForm({ onSent: _onSent }: { onSent: () => void }) {
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <div>
-        <label className="text-sm font-semibold block mb-1">שם מלא</label>
-        <Input required placeholder="השם שלך" className="rounded-xl"
-          value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
-      </div>
-      <div>
-        <label className="text-sm font-semibold block mb-1">אימייל</label>
-        <Input required type="email" placeholder="example@email.com" className="rounded-xl" dir="ltr"
-          value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
-      </div>
-      <div>
-        <label className="text-sm font-semibold block mb-1">הודעה</label>
-        <textarea
-          required
-          placeholder="במה אוכל לעזור?"
-          rows={3}
-          className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-          value={form.message}
-          onChange={e => setForm(p => ({ ...p, message: e.target.value }))}
-        />
-      </div>
-      {error && <p className="text-red-500 text-xs text-center">{error}</p>}
-      <Button type="submit" disabled={busy} className="w-full rounded-xl py-5 font-bold text-base bg-violet-600 hover:bg-violet-700 text-white">
-        {busy ? "שולח..." : "שלחי הודעה 🚀"}
-      </Button>
-    </form>
+    <div className="text-center space-y-4 py-2">
+      <p className="text-stone-600 text-sm leading-relaxed">
+        לכל שאלה או בקשה — שלחי מייל ישירות לדבורי ואחזור אלייך בהקדם 😊
+      </p>
+      <p className="text-lg font-bold text-violet-700 select-all" dir="ltr">
+        dvoraz@schoolframe.net
+      </p>
+    </div>
   );
 }
 
@@ -1359,8 +1311,8 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
               transition={{ type: "spring", damping: 22, stiffness: 300 }}
               dir="rtl"
             >
-              <h2 className="text-2xl font-extrabold text-stone-800 mb-1">צור קשר ✉️</h2>
-              <p className="text-stone-500 text-sm mb-5">שלחי לי הודעה ואחזור אלייך בהקדם</p>
+              <h2 className="text-2xl font-extrabold text-stone-800 mb-1">בעל עסק? צור קשר ✉️</h2>
+              <p className="text-stone-500 text-sm mb-5">מעוניינת להצטרף ליריד? אשמח לשמוע!</p>
               {!contactSent ? (
                 <ContactForm onSent={() => setContactSent(true)} />
               ) : (
@@ -1924,10 +1876,9 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
           </motion.button>
 
           {/* ─ Contact square ─────────────────────────────────────── */}
-          <motion.button
-            onClick={() => { setShowContact(true); setContactSent(false); }}
+          <div
             dir="rtl"
-            className="flex flex-col items-center justify-center gap-2 rounded-2xl"
+            className="flex flex-col items-center justify-center gap-1 rounded-2xl"
             style={{
               width: 144, height: 144,
               background: "linear-gradient(135deg, rgba(109,40,217,0.55) 0%, rgba(219,39,119,0.45) 100%)",
@@ -1935,14 +1886,18 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
               boxShadow: "0 4px 28px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.10)",
               backdropFilter: "blur(14px)",
               color: "white",
-              cursor: "pointer",
             }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
           >
-            <span style={{ fontSize: 52, lineHeight: 1, filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.5))" }}>✉️</span>
+            <span style={{ fontSize: 36, lineHeight: 1, filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.5))" }}>✉️</span>
             <span className="font-extrabold text-center leading-tight" style={{ fontSize: 13, color: "white", textShadow: "0 1px 6px rgba(0,0,0,0.6)" }}>בעל עסק?<br />צור קשר</span>
-          </motion.button>
+            <span
+              className="select-all text-center"
+              dir="ltr"
+              style={{ fontSize: 10, color: "rgba(255,255,255,0.85)", fontWeight: 600, wordBreak: "break-all", padding: "0 6px" }}
+            >
+              dvoraz@schoolframe.net
+            </span>
+          </div>
           </div>{/* end squares wrapper */}
 
           {/* ─ Sponsor badge ──────────────────────────────────────────── */}
