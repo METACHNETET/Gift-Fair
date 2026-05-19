@@ -157,13 +157,30 @@ export default function AdminPage() {
   };
 
   const downloadShopLeads = (shop: ShopWithLeads) => {
-    const rows = finaleLeads.filter((l: FinaleLead) => l.shopIds.includes(shop.id));
+    // Deduped list: finale leads first, then interest-only leads
+    const seenEmails = new Set<string>();
+    type CsvRow = { name: string; email: string; date: string; source: string };
+    const rows: CsvRow[] = [];
+
+    finaleLeads.filter(l => l.shopIds.includes(shop.id)).forEach(l => {
+      const key = l.email?.toLowerCase();
+      if (key && seenEmails.has(key)) return;
+      if (key) seenEmails.add(key);
+      const date = l.claimedAt ? new Date(l.claimedAt.seconds * 1000).toLocaleDateString("he-IL") : "";
+      rows.push({ name: l.name, email: l.email, date, source: "הגמר" });
+    });
+
+    shopInterests.filter(l => l.shopId === shop.id && l.email).forEach(l => {
+      const key = l.email!.toLowerCase();
+      if (seenEmails.has(key)) return;
+      seenEmails.add(key);
+      const date = l.collectedAt ? new Date(l.collectedAt.seconds * 1000).toLocaleDateString("he-IL") : "";
+      rows.push({ name: "", email: l.email!, date, source: "עצר" });
+    });
+
     const csv = [
-      "שם,אימייל,תאריך",
-      ...rows.map((l: FinaleLead) => {
-        const date = l.claimedAt ? new Date(l.claimedAt.seconds * 1000).toLocaleDateString("he-IL") : "";
-        return `"${l.name}","${l.email}","${date}"`;
-      }),
+      "שם,אימייל,תאריך,מקור",
+      ...rows.map(r => `"${r.name}","${r.email}","${r.date}","${r.source}"`),
     ].join("\n");
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
