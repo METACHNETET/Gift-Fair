@@ -1876,7 +1876,8 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
           </motion.button>
 
           {/* ─ Contact square ─────────────────────────────────────── */}
-          <div
+          <motion.div
+            onClick={() => { setShowContact(true); setContactSent(false); }}
             dir="rtl"
             className="flex flex-col items-center justify-center gap-1 rounded-2xl"
             style={{
@@ -1886,7 +1887,10 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
               boxShadow: "0 4px 28px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.10)",
               backdropFilter: "blur(14px)",
               color: "white",
+              cursor: "pointer",
             }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
           >
             <span style={{ fontSize: 36, lineHeight: 1, filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.5))" }}>✉️</span>
             <span className="font-extrabold text-center leading-tight" style={{ fontSize: 13, color: "white", textShadow: "0 1px 6px rgba(0,0,0,0.6)" }}>בעל עסק?<br />צור קשר</span>
@@ -1897,7 +1901,7 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
             >
               dvoraz@schoolframe.net
             </span>
-          </div>
+          </motion.div>
           </div>{/* end squares wrapper */}
 
           {/* ─ Sponsor badge ──────────────────────────────────────────── */}
