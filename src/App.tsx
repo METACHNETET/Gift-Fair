@@ -86,7 +86,7 @@ function ShopBuilding({
       >
         {/* board */}
         <div
-          className="relative flex items-center justify-center rounded-xl overflow-hidden"
+          className={`relative flex items-center justify-center rounded-xl overflow-hidden ${shop.highlighted ? "sign-highlight" : ""}`}
           style={{
             width: 370, height: 158,
             background: "linear-gradient(135deg,#fffdf7 60%,#fef3c7)",

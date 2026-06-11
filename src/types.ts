@@ -26,6 +26,7 @@ export interface Shop {
   logoUrl?: string;
   leadsCount: number;
   businessName?: string; // Denormalized for easy display
+  highlighted?: boolean; // Red blinking highlight on the shop sign
 }
 
 export interface Lead {

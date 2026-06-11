@@ -30,6 +30,7 @@ const SHOPS: Shop[] = [
     giftLink: "https://brucy.ravpage.co.il/etgar?ref=dvory",
     logoUrl: "/logos/letstalk.png",
     leadsCount: 0,
+    highlighted: true,
   },
   {
     id: "shop-3",
@@ -90,6 +91,7 @@ const SHOPS: Shop[] = [
     giftLink: "https://lp.vp4.me/1g66?CS=dvorizilberstion",
     logoUrl: "/logos/sparking.png",
     leadsCount: 0,
+    highlighted: true,
   },
   {
     id: "shop-6",
@@ -126,6 +128,7 @@ const SHOPS: Shop[] = [
     giftLink: "https://mirimendelson-photo.com/",
     logoUrl: "/logos/mirimendelson.jpg",
     leadsCount: 0,
+    highlighted: true,
   },
   {
     id: "shop-9",
@@ -162,6 +165,7 @@ const SHOPS: Shop[] = [
     giftLink: "https://drive.google.com/file/d/12eKrDXntTvAoZY7wd-jmR0FtzgpupNoJ/view?usp=sharing",
     logoUrl: "/logos/dvorakaldaron.png",
     leadsCount: 0,
+    highlighted: true,
   },
   {
     id: "shop-11",
@@ -198,6 +202,7 @@ const SHOPS: Shop[] = [
     giftLink: "https://yrgt.ravpage.co.il/%D7%9E%D7%93%D7%A8%D7%99%D7%9A",
     logoUrl: "/logos/yehuditrubinshtein.jpg",
     leadsCount: 0,
+    highlighted: true,
   },
   {
     id: "shop-14",
@@ -234,6 +239,7 @@ const SHOPS: Shop[] = [
     giftLink: "https://lp.vp4.me/ipyo",
     logoUrl: "/logos/saralangzam.png",
     leadsCount: 0,
+    highlighted: true,
   },
   {
     id: "shop-17",
@@ -306,6 +312,7 @@ const SHOPS: Shop[] = [
     giftLink: "https://bit.ly/4d54b8f",
     logoUrl: "/logos/generator.png",
     leadsCount: 0,
+    highlighted: true,
   },
   {
     id: "shop-23",
