@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useAuth } from "./lib/AuthContext";
 import { auth, db } from "./lib/firebase";
 import { signInWithPopup, GoogleAuthProvider, signOut, signInWithEmailAndPassword } from "firebase/auth";
@@ -33,12 +33,25 @@ interface ShopInterest {
   collectedAt: { seconds: number } | null;
 }
 
+interface EarlySignup {
+  email: string | null;
+  signedUpAt: { seconds: number } | null;
+}
+
+interface AllLead {
+  name: string;
+  email: string;
+  claimedAt: { seconds: number } | null;
+  shopCount: number;
+}
+
 // ─── AdminPage ────────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { user, loading } = useAuth();
   const [shops, setShops] = useState<ShopWithLeads[]>([]);
   const [finaleLeads, setFinaleLeads] = useState<FinaleLead[]>([]);
   const [shopInterests, setShopInterests] = useState<ShopInterest[]>([]);
+  const [earlySignups, setEarlySignups] = useState<EarlySignup[]>([]);
   const [expandedShopId, setExpandedShopId] = useState<string | null>(null);
   const [refStats, setRefStats] = useState<RefStat[]>([]);
   const [activeTab, setActiveTab] = useState<'shops' | 'refs'>('shops');
@@ -56,9 +69,10 @@ export default function AdminPage() {
     setFetching(true);
     setFetchError(null);
     try {
-      const [finaleSnap, interestsSnap] = await Promise.all([
+      const [finaleSnap, interestsSnap, earlySnap] = await Promise.all([
         getDocsFromServer(query(collection(db, "fairs", "main_fair", "finale_leads"), orderBy("claimedAt", "desc"))),
         getDocsFromServer(collection(db, "fairs", "main_fair", "shop_interests")),
+        getDocsFromServer(collection(db, "fairs", "main_fair", "early_signups")),
       ]);
 
       // Per-shop: set of unique emails (+ anonymous counter) from both sources
@@ -101,6 +115,11 @@ export default function AdminPage() {
         shopId: d.data().shopId as string,
         email: (d.data().email as string | undefined) ?? null,
         collectedAt: d.data().collectedAt ?? null,
+      })));
+
+      setEarlySignups(earlySnap.docs.map(d => ({
+        email: (d.data().email as string | undefined) ?? null,
+        signedUpAt: d.data().signedUpAt ?? null,
       })));
 
       // group finale_leads by ref
@@ -192,6 +211,48 @@ export default function AdminPage() {
   };
 
   const totalLeads = shops.reduce((sum: number, s: ShopWithLeads) => sum + s.leadCount, 0);
+
+  // ── All unique leads in the fair (deduped by email across all sources) ───────
+  const allLeads = useMemo((): AllLead[] => {
+    const byEmail = new Map<string, AllLead>();
+
+    finaleLeads.forEach(l => {
+      const key = l.email?.toLowerCase().trim();
+      if (!key) return;
+      byEmail.set(key, { name: l.name, email: l.email, claimedAt: l.claimedAt, shopCount: l.shopIds.length });
+    });
+
+    shopInterests.forEach(l => {
+      const key = l.email?.toLowerCase().trim();
+      if (!key || byEmail.has(key)) return;
+      byEmail.set(key, { name: "", email: l.email!, claimedAt: l.collectedAt, shopCount: 1 });
+    });
+
+    earlySignups.forEach(l => {
+      const key = l.email?.toLowerCase().trim();
+      if (!key || byEmail.has(key)) return;
+      byEmail.set(key, { name: "", email: l.email!, claimedAt: l.signedUpAt, shopCount: 0 });
+    });
+
+    return Array.from(byEmail.values());
+  }, [finaleLeads, shopInterests, earlySignups]);
+
+  const downloadAllLeads = () => {
+    const csv = [
+      "שם,אימייל,תאריך,מספר חנויות",
+      ...allLeads.map(l => {
+        const date = l.claimedAt ? new Date(l.claimedAt.seconds * 1000).toLocaleDateString("he-IL") : "";
+        return `"${l.name}","${l.email}","${date}","${l.shopCount}"`;
+      }),
+    ].join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "כל-הלידים-giftfair.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // ── Loading ──────────────────────────────────────────────────────────────────
   if (loading) {
@@ -312,6 +373,18 @@ export default function AdminPage() {
             <div className="text-3xl font-bold text-gray-700">{shops.length}</div>
             <div className="text-sm text-gray-500 mt-1">סה"כ עסקים</div>
           </div>
+        </div>
+
+        {/* All unique leads in the fair */}
+        <div className="bg-white rounded-lg shadow p-4 flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <div className="text-3xl font-bold text-purple-600">{allLeads.length}</div>
+            <div className="text-sm text-gray-500 mt-1">לידים ייחודיים בכל היריד (כפילויות הוסרו)</div>
+          </div>
+          <Button onClick={downloadAllLeads} disabled={allLeads.length === 0}>
+            <Download className="w-4 h-4 ml-2" />
+            הורד את כל הלידים (CSV)
+          </Button>
         </div>
 
         {/* Tabs */}
