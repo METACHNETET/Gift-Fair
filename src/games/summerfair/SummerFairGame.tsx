@@ -92,8 +92,21 @@ function EmailDialog({
         exit={{ scale: 0.85, y: 20, opacity: 0 }}
         transition={{ type: "spring", damping: 22, stiffness: 300 }}
       >
-        <h2 className="text-2xl font-extrabold text-stone-800 mb-2">רגע – לפני שנתחיל</h2>
-        <p className="text-stone-600 text-base mb-5">לאיפה תרצי שאשלח לך את המתנות?</p>
+        <div className="text-center mb-6">
+          <motion.div className="text-4xl mb-3" animate={{ rotate: [0, -10, 10, 0] }} transition={{ duration: 1.2, repeat: Infinity, repeatDelay: 2 }}>🎁</motion.div>
+          <h2 className="font-black text-stone-800 mb-2 leading-tight" style={{ fontSize: "clamp(22px, 5vw, 28px)" }}>
+            רגע לפני שנתחיל —
+          </h2>
+          <p className="font-extrabold leading-snug" style={{
+            fontSize: "clamp(20px, 5vw, 26px)",
+            background: "linear-gradient(135deg, #0891b2, #0369a1, #7c3aed)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+          }}>
+            לאיפה תרצי שאשלח<br />לך את המתנות? 🌊
+          </p>
+        </div>
 
         <div className="space-y-4">
           <div>
