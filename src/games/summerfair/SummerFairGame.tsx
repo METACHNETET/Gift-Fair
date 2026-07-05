@@ -842,13 +842,36 @@ export default function SummerFairGame() {
             <motion.div className="relative z-[2] uppercase tracking-widest font-light" style={{ color: "rgba(255,255,255,0.45)", fontSize: "clamp(12px,1.8vw,16px)", letterSpacing: 6, marginTop: -14 }}
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>Summer Fair</motion.div>
 
-            <motion.div className="relative z-[2] flex flex-wrap items-center justify-center gap-1 rounded-full text-white/90 font-semibold"
-              style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.14)", backdropFilter: "blur(12px)", padding: "clamp(10px,1.8vw,20px) clamp(20px,3.5vw,44px)", fontSize: "clamp(13px,1.8vw,17px)" }}
-              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-              <span>בים צפות הרבה מתנות</span><span className="mx-3 text-yellow-400/60">·</span>
-              <span>גררי את הסירה למתנה שאת רוצה</span><span className="mx-3 text-yellow-400/60">·</span>
-              <span>לחצי עליה</span><span className="mx-3 text-yellow-400/60">·</span>
-              <span>והופ — המתנה בדרך אלייך</span>
+            {/* Video */}
+            <motion.div className="relative z-[2] w-full overflow-hidden rounded-2xl shadow-2xl"
+              style={{ maxWidth: "min(88vw, 560px)", aspectRatio: "16/9", boxShadow: "0 0 0 2px rgba(255,200,60,0.4), 0 20px 70px rgba(0,0,0,0.7)" }}
+              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+              <iframe
+                src="https://www.youtube.com/embed/usPBdPkKDCo"
+                allow="autoplay; encrypted-media"
+                allowFullScreen
+                className="w-full h-full border-0 block"
+              />
+            </motion.div>
+
+            {/* Step-by-step instructions */}
+            <motion.div className="relative z-[2] grid grid-cols-2 gap-2 w-full"
+              style={{ maxWidth: "min(88vw, 560px)" }}
+              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
+              {[
+                { emoji: "🎁", text: "בים צפות מתנות מעסקים מדהימים" },
+                { emoji: "⛵", text: "גררי את הסירה למתנה שאת רוצה" },
+                { emoji: "👆", text: "לחצי על הסירה כשהיא מעל המתנה" },
+                { emoji: "🎉", text: "המתנה בדרך אלייך!" },
+              ].map((step, i) => (
+                <motion.div key={i}
+                  className="flex items-center gap-2 rounded-2xl px-4 py-3"
+                  style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(10px)" }}
+                  initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 + i * 0.07 }}>
+                  <span className="text-2xl flex-shrink-0">{step.emoji}</span>
+                  <span className="text-white/90 font-semibold leading-snug" style={{ fontSize: "clamp(11px,1.5vw,14px)" }}>{step.text}</span>
+                </motion.div>
+              ))}
             </motion.div>
 
             <motion.button onClick={() => setPhase("email")} className="relative z-[2] font-black rounded-full border-0"
