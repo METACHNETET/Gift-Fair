@@ -228,7 +228,7 @@ export default function FairHub() {
           animate={{ opacity: 1 }}
           transition={{ delay: 1 }}
         >
-          כל הזכויות שמורות · ירידי מניפה לתנופה
+          כל הזכויות שמורות · ירידי דבורה זילברשטיין
         </motion.p>
       </div>
     </div>
