@@ -1,6 +1,6 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence, useAnimationControls } from "motion/react";
-import { Store, LogIn, LogOut, ChevronLeft, Share2, Users, Play, Pause } from "lucide-react";
+import { Store, LogIn, LogOut, ChevronLeft, Share2, Users, Play, Pause, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,8 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "./lib/AuthContext";
 import { auth, db } from "./lib/firebase";
 import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
-import { collection, query, onSnapshot, where, addDoc, serverTimestamp } from "firebase/firestore";
-import { Shop, Lead } from "./types";
+import { collection, collectionGroup, query, onSnapshot, getDocs, where, addDoc, serverTimestamp, orderBy } from "firebase/firestore";
+import { Shop, Lead, FinaleLead } from "./types";
 import GENERATED_SHOPS from "./shops-data";
 import { toast } from "sonner";
 
@@ -1028,10 +1028,12 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   const [isDriving, setIsDriving] = useState(false);
   const [stopFx, setStopFx] = useState<{ shopId: string; nonce: number } | null>(null);
   const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
+  const [showFairEnded, setShowFairEnded] = useState(true);
   const [showWelcome, setShowWelcome] = useState(true);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [userEmail, setUserEmail] = useState("");
   const [marketingConsent, setMarketingConsent] = useState(false);
+  const [consentError, setConsentError] = useState(false);
   const [contactSent, setContactSent] = useState(false);
   const [showContact, setShowContact] = useState(false);
   const showWelcomeRef = useRef(showWelcome);
@@ -1993,75 +1995,81 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
           )}
         </AnimatePresence>
 
-        {/* ── Email Dialog ──────────────────────────────────────────────── */}
-        <AnimatePresence>
-          {showEmailDialog && (
+        </div>{/* end inner scaled canvas */}
+      </div>{/* end outer clip */}
+
+      {/* ── Email Dialog — outside scaled canvas so position:fixed works correctly */}
+      <AnimatePresence>
+        {showEmailDialog && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={e => { if (e.target !== e.currentTarget) return; if (userEmail.trim() && !marketingConsent) { setConsentError(true); return; } setShowEmailDialog(false); }}
+          >
             <motion.div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={e => e.target === e.currentTarget && setShowEmailDialog(false)}
+              className="bg-white rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl"
+              initial={{ scale: 0.85, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.85, opacity: 0, y: 30 }}
+              transition={{ type: "spring", damping: 22, stiffness: 300 }}
+              dir="rtl"
             >
-              <motion.div
-                className="bg-white rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl"
-                initial={{ scale: 0.85, opacity: 0, y: 30 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.85, opacity: 0, y: 30 }}
-                transition={{ type: "spring", damping: 22, stiffness: 300 }}
-                dir="rtl"
-              >
-                <h2 className="text-2xl font-extrabold text-stone-800 mb-2">רגע – לפני שנתחיל</h2>
-                <p className="text-stone-700 text-base mb-5">לאיפה תרצה שאשלח לך את המתנות?</p>
-                <form onSubmit={async e => {
-                  e.preventDefault();
-                  setShowEmailDialog(false);
-                  if (userEmail.trim()) {
-                    try {
-                      await addDoc(collection(db, "fairs", "main_fair", "early_signups"), {
-                        email: userEmail.trim(),
-                        marketingConsent,
-                        signedUpAt: serverTimestamp(),
-                        ref: refParam,
-                      });
-                    } catch (err) {
-                      console.error("[early_signup] failed:", err);
-                    }
-                  }
-                }} className="space-y-4">
-                  <div>
-                    <label className="text-sm font-semibold block mb-1">אימייל (לא חובה)</label>
-                    <Input
-                      type="email"
-                      placeholder="example@email.com"
-                      className="rounded-xl"
-                      dir="ltr"
-                      value={userEmail}
-                      onChange={e => setUserEmail(e.target.value)}
-                    />
-                  </div>
+              <h2 className="text-2xl font-extrabold text-stone-800 mb-2">רגע – לפני שנתחיל</h2>
+              <p className="text-stone-700 text-base mb-5">לאיפה תרצה שאשלח לך את המתנות?</p>
+              <form onSubmit={(e: React.FormEvent) => e.preventDefault()} className="space-y-4">
+                <div>
+                  <label className="text-sm font-semibold block mb-1">אימייל (לא חובה)</label>
+                  <Input
+                    type="email"
+                    placeholder="example@email.com"
+                    className="rounded-xl"
+                    dir="ltr"
+                    value={userEmail}
+                    onChange={e => setUserEmail(e.target.value)}
+                  />
+                </div>
+                <div>
                   <label className="flex items-start gap-2 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={marketingConsent}
-                      onChange={e => setMarketingConsent(e.target.checked)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setMarketingConsent(e.target.checked); setConsentError(false); }}
                       className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-violet-600"
                     />
-                    <span className="text-xs text-stone-600 leading-snug">
+                    <span className={`text-xs leading-snug ${consentError ? "text-red-600 font-semibold" : "text-stone-600"}`}>
                       אני מאשרת דיוור מהעסקים — שיוכלו לשלוח לי את המתנות 🙂 ומדבורי זילברשטיין ומניפה לתנופה מנהלות היריד
                     </span>
                   </label>
-                  <Button type="submit" className="w-full rounded-xl py-3 font-bold text-base bg-violet-600 hover:bg-violet-700 text-white">
-                    יאללה, בואו נתחיל!
-                  </Button>
-                  <Button type="button" variant="outline" className="w-full rounded-xl py-3 font-bold text-base mt-2" onClick={() => setShowEmailDialog(false)}>
-                    דלג
-                  </Button>
-                </form>
-              </motion.div>
+                  {userEmail.trim() && !marketingConsent && (
+                    <p className="text-xs text-red-500 mt-1 pr-6 font-medium">⚠ יש לאשר קבלת דיוור כדי לשמור את המייל</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  disabled={!!userEmail.trim() && !marketingConsent}
+                  className="w-full rounded-xl py-3 font-bold text-base bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                  onClick={async () => {
+                    if (userEmail.trim() && !marketingConsent) { setConsentError(true); return; }
+                    setShowEmailDialog(false);
+                    if (userEmail.trim()) {
+                      try {
+                        await addDoc(collection(db, "fairs", "main_fair", "early_signups"), {
+                          email: userEmail.trim(), marketingConsent, signedUpAt: serverTimestamp(), ref: refParam,
+                        });
+                      } catch (err) { console.error("[early_signup] failed:", err); }
+                    }
+                  }}
+                >
+                  יאללה, בואו נתחיל!
+                </button>
+                <button type="button" className="w-full rounded-xl py-3 font-bold text-base border border-stone-200 bg-white hover:bg-stone-50 mt-2" onClick={() => setShowEmailDialog(false)}>
+                  דלג
+                </button>
+              </form>
             </motion.div>
-          )}
-        </AnimatePresence>
-        </div>{/* end inner scaled canvas */}
-      </div>{/* end outer clip */}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── HUD — progress bar ─────────────────────────────────────────────── */}
       <div className="bg-brand-primary text-white px-3 py-1.5 flex items-center justify-between gap-2" dir="rtl" style={{ minHeight: 0 }}>
@@ -2138,6 +2146,78 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
         )}
       </AnimatePresence>
 
+      {/* ── Fair-ended announcement popup ────────────────────────────────── */}
+      <AnimatePresence>
+        {showFairEnded && (
+          <motion.div
+            className="fixed inset-0 z-[999] flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            dir="rtl"
+          >
+            <motion.div
+              className="relative mx-4 rounded-3xl overflow-hidden text-center"
+              style={{
+                background: "linear-gradient(145deg, #1a0a2e 0%, #2d1458 50%, #1a0a2e 100%)",
+                boxShadow: "0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)",
+                maxWidth: 440,
+                width: "100%",
+                padding: "40px 32px 36px",
+              }}
+              initial={{ scale: 0.85, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", bounce: 0.3, duration: 0.6 }}
+            >
+              {/* confetti stars */}
+              {["✨","🎉","🌟","🎊","💫","🎁"].map((e, i) => (
+                <motion.span key={i}
+                  className="absolute text-xl pointer-events-none select-none"
+                  style={{ top: `${8 + (i % 2) * 12}%`, left: `${8 + i * 14}%` }}
+                  animate={{ y: [0, -8, 0], opacity: [0.6, 1, 0.6] }}
+                  transition={{ duration: 2 + i * 0.3, repeat: Infinity, delay: i * 0.4 }}
+                >{e}</motion.span>
+              ))}
+
+              <div className="text-5xl mb-3">🎀</div>
+
+              <h2 className="text-white font-bold mb-1" style={{ fontSize: 22, fontFamily: "var(--font-display)" }}>
+                יריד המתנות הגיע לסיומו
+              </h2>
+
+              <p className="text-purple-200 mb-4" style={{ fontSize: 13, lineHeight: 1.6 }}>
+                במצטבר נרשמו ליריד
+              </p>
+
+              <div className="mx-auto mb-4 rounded-2xl py-4 px-6 inline-block"
+                style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                <div className="text-white font-black" style={{ fontSize: 48, lineHeight: 1, letterSpacing: "-1px" }}>
+                  27,967
+                </div>
+                <div className="text-purple-300 text-sm mt-1">לידים ייחודיים 🏆</div>
+              </div>
+
+              <p className="text-purple-100 mb-6" style={{ fontSize: 14, lineHeight: 1.7 }}>
+                אפשר עדיין לשחק וליהנות מהמשחק —<br />
+                אבל <strong>המתנות כבר לא נשלחות</strong>.
+              </p>
+
+              <motion.button
+                onClick={() => setShowFairEnded(false)}
+                className="w-full rounded-2xl py-3 font-bold text-white text-base"
+                style={{ background: "linear-gradient(135deg, #7c3aed, #a855f7)" }}
+                whileHover={{ scale: 1.03, brightness: 1.1 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                להתראות ביריד הבא 👋
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Finale popup ──────────────────────────────────────────────────── */}
       <AnimatePresence>
         {showFinale && (
@@ -2156,11 +2236,19 @@ function FairLanding({ onOpenDashboard }: { onOpenDashboard: () => void }) {
 }
 
 // ─── Business Dashboard Component ────────────────────────────────────────────
+const ADMIN_EMAIL = "d0527181611@gmail.com";
+
 function BusinessDashboard({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
   const [shop, setShop] = useState<Shop | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [allFinaleLeads, setAllFinaleLeads] = useState<FinaleLead[]>([]);
+  const [shopOnlyLeads, setShopOnlyLeads] = useState<Lead[]>([]);
+  const [earlySignups, setEarlySignups] = useState<{ id: string; email: string; name?: string; signedUpAt: any }[]>([]);
+  const [adminLoading, setAdminLoading] = useState(true);
+
+  const isAdmin = user?.email === ADMIN_EMAIL;
 
   useEffect(() => {
     if (!user) return;
@@ -2189,6 +2277,101 @@ function BusinessDashboard({ onBack }: { onBack: () => void }) {
       if (unsubLeads) unsubLeads();
     };
   }, [user]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const q = query(
+      collection(db, "fairs", "main_fair", "finale_leads"),
+      orderBy("claimedAt", "desc")
+    );
+    const unsub = onSnapshot(q, async snap => {
+      const finaleLeads = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as FinaleLead));
+      setAllFinaleLeads(finaleLeads);
+
+      // One-time fetch of all shop leads to find anyone not in finale
+      const finaleEmails = new Set(finaleLeads.map((fl: FinaleLead) => fl.email.toLowerCase().trim()));
+      const shopSnap = await getDocs(collectionGroup(db, "leads"));
+      const extra: Lead[] = [];
+      const seen = new Set<string>();
+      shopSnap.docs.forEach(doc => {
+        const data = doc.data();
+        const emailKey = data.email?.toLowerCase().trim();
+        if (!emailKey || finaleEmails.has(emailKey) || seen.has(emailKey)) return;
+        const pathParts = doc.ref.path.split("/");
+        const shopsIdx = pathParts.indexOf("shops");
+        const shopId = shopsIdx >= 0 ? pathParts[shopsIdx + 1] : "";
+        if (shopId.startsWith("demo-")) return;
+        seen.add(emailKey);
+        extra.push({ id: doc.id, ...data } as Lead);
+      });
+      setShopOnlyLeads(extra);
+
+      // Fetch early_signups (people who entered email at the start dialog)
+      const earlySnap = await getDocs(collection(db, "fairs", "main_fair", "early_signups"));
+      setEarlySignups(earlySnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as { id: string; email: string; name?: string; signedUpAt: any })));
+
+      setAdminLoading(false);
+    });
+    return unsub;
+  }, [isAdmin]);
+
+  type AdminLead = { id: string; name: string; email: string; claimedAt: any; shopIds: string[]; source: string };
+
+  const adminUniqueLeads = useMemo((): AdminLead[] => {
+    const byEmail = new Map<string, AdminLead>();
+    allFinaleLeads.forEach((fl: FinaleLead) => {
+      byEmail.set(fl.email.toLowerCase().trim(), { id: fl.id, name: fl.name, email: fl.email, claimedAt: fl.claimedAt, shopIds: fl.shopIds || [], source: "finale" });
+    });
+    shopOnlyLeads.forEach((sl: Lead) => {
+      const key = sl.email?.toLowerCase().trim();
+      if (key && !byEmail.has(key)) {
+        byEmail.set(key, { id: sl.id, name: sl.name, email: sl.email, claimedAt: sl.claimedAt, shopIds: [sl.shopId], source: "shop" });
+      }
+    });
+    earlySignups.forEach((es: { id: string; email: string; name?: string; signedUpAt: any }) => {
+      const key = es.email?.toLowerCase().trim();
+      if (key && !byEmail.has(key)) {
+        byEmail.set(key, { id: es.id, name: es.name || "", email: es.email, claimedAt: es.signedUpAt, shopIds: [], source: "early" });
+      }
+    });
+    return Array.from(byEmail.values());
+  }, [allFinaleLeads, shopOnlyLeads, earlySignups]);
+
+  const handleAdminDownload = async () => {
+    const shopLeadsSnap = await getDocs(collectionGroup(db, "leads"));
+    const byEmail = new Map<string, { name: string; email: string; claimedAt: any; shopIds: string[] }>();
+    allFinaleLeads.forEach((fl: FinaleLead) => {
+      byEmail.set(fl.email.toLowerCase().trim(), { name: fl.name, email: fl.email, claimedAt: fl.claimedAt, shopIds: fl.shopIds || [] });
+    });
+    shopLeadsSnap.docs.forEach(doc => {
+      const data = doc.data();
+      const emailKey = data.email?.toLowerCase().trim();
+      if (!emailKey || byEmail.has(emailKey)) return;
+      const pathParts = doc.ref.path.split("/");
+      const shopsIdx = pathParts.indexOf("shops");
+      const shopId = shopsIdx >= 0 ? pathParts[shopsIdx + 1] : "";
+      if (shopId.startsWith("demo-")) return;
+      byEmail.set(emailKey, { name: data.name, email: data.email, claimedAt: data.claimedAt, shopIds: [shopId] });
+    });
+    // Add early_signups (people who signed up at the start but might not have played)
+    earlySignups.forEach((es: { id: string; email: string; name?: string; signedUpAt: any }) => {
+      const emailKey = es.email?.toLowerCase().trim();
+      if (emailKey && !byEmail.has(emailKey)) {
+        byEmail.set(emailKey, { name: es.name || "", email: es.email, claimedAt: es.signedUpAt, shopIds: [] });
+      }
+    });
+    const rows = Array.from(byEmail.values());
+    const csv = "﻿" + "שם,אימייל,תאריך,מספר מתנות\n" + rows.map(r =>
+      `"${r.name}","${r.email}","${r.claimedAt ? new Date(r.claimedAt.seconds * 1000).toLocaleDateString("he-IL") : ""}","${r.shopIds.length}"`
+    ).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "all-leads-giftfair.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleCreateShop = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -2252,6 +2435,9 @@ function BusinessDashboard({ onBack }: { onBack: () => void }) {
             <TabsTrigger value="overview">סקירה כללית</TabsTrigger>
             <TabsTrigger value="leads">לידים ({leads.length})</TabsTrigger>
             <TabsTrigger value="settings">הגדרות מתנה</TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="admin">כל הלידים ({adminUniqueLeads.length})</TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="overview">
@@ -2322,6 +2508,68 @@ function BusinessDashboard({ onBack }: { onBack: () => void }) {
               </div>
             </Card>
           </TabsContent>
+
+          {isAdmin && (
+            <TabsContent value="admin">
+              <Card>
+                <div className="p-6 border-b flex justify-between items-center">
+                  <div>
+                    <h3 className="text-xl font-display">כל הלידים — מנהל יריד</h3>
+                    <p className="text-sm text-stone-400 mt-1">
+                      {adminLoading ? "טוען..." : `${adminUniqueLeads.length} נרשמות ייחודיות`}
+                    </p>
+                  </div>
+                  <Button size="sm" onClick={handleAdminDownload} disabled={adminLoading}>
+                    <Download className="w-4 h-4 ml-2" />
+                    ייצוא CSV מלא
+                  </Button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right">
+                    <thead className="bg-stone-50 text-stone-500 text-sm">
+                      <tr>
+                        <th className="p-4 font-medium">שם</th>
+                        <th className="p-4 font-medium">אימייל</th>
+                        <th className="p-4 font-medium">מקור</th>
+                        <th className="p-4 font-medium">מתנות</th>
+                        <th className="p-4 font-medium">תאריך</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adminUniqueLeads.map((lead: AdminLead) => (
+                        <tr key={lead.id} className="border-t">
+                          <td className="p-4 font-semibold">{lead.name || <span className="text-stone-300 italic">—</span>}</td>
+                          <td className="p-4 text-stone-600">{lead.email}</td>
+                          <td className="p-4 text-center">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              lead.source === "finale" ? "bg-green-100 text-green-700" :
+                              lead.source === "early" ? "bg-blue-100 text-blue-700" :
+                              "bg-stone-100 text-stone-500"
+                            }`}>
+                              {lead.source === "finale" ? "השלימה" : lead.source === "early" ? "הרשמה מוקדמת" : "חנות"}
+                            </span>
+                          </td>
+                          <td className="p-4 text-stone-400 italic text-sm">
+                            {lead.claimedAt ? new Date(lead.claimedAt.seconds * 1000).toLocaleDateString("he-IL") : "---"}
+                          </td>
+                        </tr>
+                      ))}
+                      {!adminLoading && adminUniqueLeads.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="p-12 text-center text-stone-400">אין לידים עדיין</td>
+                        </tr>
+                      )}
+                      {adminLoading && (
+                        <tr>
+                          <td colSpan={4} className="p-12 text-center text-stone-400">טוען נתונים...</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </TabsContent>
+          )}
 
           <TabsContent value="settings">
             <Card className="p-8">

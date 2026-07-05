@@ -37,3 +37,12 @@ export interface Lead {
   phone?: string;
   claimedAt: any;
 }
+
+export interface FinaleLead {
+  id: string;
+  name: string;
+  email: string;
+  shopIds: string[];
+  claimedAt: any;
+  ref?: string;
+}
