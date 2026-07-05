@@ -40,8 +40,7 @@ const FAIRS: FairCard[] = [
 ];
 
 const COMING_SOON: { title: string; subtitle: string; emoji: string }[] = [
-  { title: "יריד החורף", subtitle: "Winter Fair", emoji: "❄️" },
-  { title: "יריד האוכל", subtitle: "Food Fair", emoji: "🍕" },
+  { title: "יריד B2B", subtitle: "B2B Fair", emoji: "🤝" },
 ];
 
 export default function FairHub() {
@@ -202,7 +201,7 @@ export default function FairHub() {
             <p className="text-center text-purple-300/50 text-xs uppercase tracking-widest mb-4">
               בקרוב
             </p>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4" style={{ maxWidth: 300, margin: "0 auto" }}>
               {COMING_SOON.map((fair) => (
                 <div
                   key={fair.title}
