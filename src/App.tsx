@@ -2638,15 +2638,15 @@ function BusinessDashboard({ onBack }: { onBack: () => void }) {
   );
 }
 
-export default function App() {
+export function GiftFairApp() {
   const [view, setView] = useState<"landing" | "dashboard">("landing");
   const { loading } = useAuth();
 
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-brand-secondary">
-        <motion.div 
-          animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }} 
+        <motion.div
+          animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }}
           transition={{ repeat: Infinity, duration: 2 }}
           className="text-4xl font-display text-brand-primary"
         >
@@ -2659,7 +2659,7 @@ export default function App() {
   return (
     <AnimatePresence mode="wait">
       {view === "landing" ? (
-        <motion.div 
+        <motion.div
           key="landing"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -2668,7 +2668,7 @@ export default function App() {
           <FairLanding onOpenDashboard={() => setView("dashboard")} />
         </motion.div>
       ) : (
-        <motion.div 
+        <motion.div
           key="dashboard"
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
