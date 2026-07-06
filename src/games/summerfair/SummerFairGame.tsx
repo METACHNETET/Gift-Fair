@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { STORES, buildQueue, giftImg, SummerItem, SummerStore, SummerBomb } from "./shops-data";
+import { STORES, buildQueue, giftImg, SummerItem, SummerStore, SummerBomb, MISSING_GIFT } from "./shops-data";
 import { toast } from "sonner";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -12,6 +12,73 @@ const CIRC = 2 * Math.PI * 36;
 
 function isBomb(item: SummerItem): item is SummerBomb {
   return (item as SummerBomb).type === "bomb";
+}
+
+// ─── Parrot ───────────────────────────────────────────────────────────────────
+function Parrot() {
+  return (
+    <motion.div
+      className="absolute pointer-events-none z-[15]"
+      style={{ top: "12%", right: 0 }}
+      animate={{ x: ["0vw", "-120vw"], y: [0, -18, 6, -22, 0, -14, 8, -20, 0] }}
+      transition={{
+        x: { duration: 14, repeat: Infinity, repeatDelay: 10, ease: "linear" },
+        y: { duration: 1.6, repeat: Infinity, ease: "easeInOut" },
+      }}
+    >
+      <svg width="100" height="80" viewBox="0 0 100 80" style={{ filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.35))", transform: "scaleX(-1)" }}>
+        {/* Body */}
+        <ellipse cx="46" cy="42" rx="20" ry="14" fill="#16a34a" />
+
+        {/* Belly patch */}
+        <ellipse cx="48" cy="46" rx="10" ry="8" fill="#86efac" />
+
+        {/* Red chest */}
+        <ellipse cx="50" cy="40" rx="7" ry="5" fill="#dc2626" />
+
+        {/* Front wing — flaps up */}
+        <motion.ellipse cx="44" cy="36" rx="28" ry="10" fill="#22c55e"
+          animate={{ ry: [10, 18, 10], cy: [36, 28, 36] }}
+          transition={{ duration: 0.32, repeat: Infinity, ease: "easeInOut" }}
+          style={{ transformOrigin: "44px 42px" }} />
+
+        {/* Wing tip yellow */}
+        <motion.ellipse cx="20" cy="34" rx="10" ry="5" fill="#facc15"
+          animate={{ cy: [34, 24, 34], ry: [5, 8, 5] }}
+          transition={{ duration: 0.32, repeat: Infinity, ease: "easeInOut" }} />
+
+        {/* Head */}
+        <circle cx="66" cy="28" r="14" fill="#16a34a" />
+
+        {/* Beak upper */}
+        <path d="M 77 24 Q 90 26 77 30 Z" fill="#ca8a04" />
+        {/* Beak lower */}
+        <path d="M 77 28 Q 88 30 77 32 Z" fill="#a16207" />
+
+        {/* Eye white */}
+        <circle cx="70" cy="24" r="4" fill="white" />
+        {/* Pupil */}
+        <circle cx="71" cy="24" r="2.2" fill="#111" />
+        {/* Eye shine */}
+        <circle cx="72" cy="23" r="0.8" fill="white" />
+
+        {/* Head crest */}
+        <motion.path d="M 64 15 Q 60 5 58 0 Q 64 8 68 14" fill="#4ade80"
+          animate={{ rotate: [-8, 8, -8] }}
+          transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut" }}
+          style={{ transformOrigin: "64px 15px" }} />
+
+        {/* Tail feathers */}
+        <motion.g animate={{ rotate: [0, 5, 0, -5, 0] }}
+          transition={{ duration: 1.2, repeat: Infinity }}
+          style={{ transformOrigin: "26px 54px" }}>
+          <path d="M 26 54 L 4 74" stroke="#15803d" strokeWidth="4" strokeLinecap="round" />
+          <path d="M 28 56 L 10 78" stroke="#22c55e" strokeWidth="3.5" strokeLinecap="round" />
+          <path d="M 24 52 L 2 68" stroke="#4ade80" strokeWidth="3" strokeLinecap="round" />
+        </motion.g>
+      </svg>
+    </motion.div>
+  );
 }
 
 // ─── Confetti ─────────────────────────────────────────────────────────────────
@@ -94,17 +161,17 @@ function EmailDialog({
       >
         <div className="text-center mb-6">
           <motion.div className="text-4xl mb-3" animate={{ rotate: [0, -10, 10, 0] }} transition={{ duration: 1.2, repeat: Infinity, repeatDelay: 2 }}>🎁</motion.div>
-          <h2 className="font-black text-stone-800 mb-2 leading-tight" style={{ fontSize: "clamp(22px, 5vw, 28px)" }}>
-            רגע לפני שנתחיל —
+          <h2 className="font-black text-stone-800 mb-2 leading-tight" style={{ fontSize: "clamp(18px, 4vw, 24px)" }}>
+            שנייה לפני שמתחילים —
           </h2>
           <p className="font-extrabold leading-snug" style={{
-            fontSize: "clamp(20px, 5vw, 26px)",
+            fontSize: "clamp(18px, 4vw, 24px)",
             background: "linear-gradient(135deg, #0891b2, #0369a1, #7c3aed)",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
             backgroundClip: "text",
           }}>
-            לאיפה תרצי שאשלח<br />לך את המתנות? 🌊
+            שכחתם לגלות לנו לאן<br />לשלוח את המתנות? 🌊
           </p>
         </div>
 
@@ -280,7 +347,10 @@ function FinaleDialog({
                   <div className="flex flex-wrap gap-2 justify-center">
                     {caughtStores.map(store => (
                       <div key={store.id} className="flex items-center gap-1 bg-sky-50 border border-sky-200 rounded-full px-3 py-1">
-                        <img src={giftImg(store.id)} alt="" className="w-5 h-5 object-contain" />
+                        {store.logo
+                          ? <img src={store.logo} alt="" className="w-5 h-5 object-contain rounded" />
+                          : <div className="w-5 h-5 rounded flex items-center justify-center bg-sky-100 text-sky-400" style={{ fontSize: 7 }}>לוגו</div>
+                        }
                         <span className="text-xs font-semibold text-sky-800">{store.name}</span>
                       </div>
                     ))}
@@ -306,7 +376,9 @@ function FinaleDialog({
                           )}
                         </div>
                         <div className="flex flex-col min-w-0">
-                          <span className="text-sm font-semibold text-stone-800 truncate">{store.gift}</span>
+                          <span className="text-sm font-semibold text-stone-800 truncate">
+                            {store.gift === MISSING_GIFT ? <span className="text-amber-500 italic">חסר תיאור מתנה</span> : store.gift}
+                          </span>
                           <span className="text-xs text-stone-500 truncate">{store.name}</span>
                         </div>
                       </label>
@@ -416,6 +488,7 @@ export default function SummerFairGame() {
 
   type Phase = "intro" | "email" | "playing" | "win" | "bomb" | "finale";
   const [phase, setPhase] = useState<Phase>("intro");
+  const [introStep, setIntroStep] = useState(0);
 
   // ── User info ──
   const [userEmail, setUserEmail] = useState("");
@@ -614,6 +687,22 @@ export default function SummerFairGame() {
     return () => clearTimeout(t);
   }, [phase, stopConfetti, afterWinClosed]);
 
+  // Intro animation steps
+  useEffect(() => {
+    if (phase !== "intro") { setIntroStep(0); return; }
+    const timers = [
+      setTimeout(() => setIntroStep(1), 1300),
+      setTimeout(() => setIntroStep(2), 2600),
+      setTimeout(() => setIntroStep(3), 4000),
+      setTimeout(() => setIntroStep(4), 4500),
+      setTimeout(() => setIntroStep(5), 5000),
+      setTimeout(() => setIntroStep(6), 5500),
+      setTimeout(() => setIntroStep(7), 6000),
+      setTimeout(() => setIntroStep(8), 6800),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [phase]);
+
   // Auto-close bomb after 3s
   useEffect(() => {
     if (phase !== "bomb") return;
@@ -736,6 +825,9 @@ export default function SummerFairGame() {
         backgroundRepeat: "no-repeat", backgroundAttachment: "fixed",
       }} />
 
+      {/* Parrot */}
+      {(phase === "intro" || phase === "playing" || phase === "win" || phase === "bomb") && <Parrot />}
+
       {/* Sand gifts */}
       {sandGifts.map((g, i) => (
         <img key={i} src={giftImg(g.id)} alt="" className="absolute pointer-events-none object-contain z-[3]"
@@ -749,7 +841,7 @@ export default function SummerFairGame() {
         className="absolute z-20 select-none"
         style={{ width: "clamp(160px,25vw,380px)", cursor: "grab", touchAction: "none",
           filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.4))",
-          display: phase === "intro" ? "none" : "block" }} />
+          display: phase === "finale" ? "none" : "block" }} />
 
       {/* Gift preview HUD */}
       <AnimatePresence>
@@ -760,14 +852,21 @@ export default function SummerFairGame() {
             initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
             transition={{ type: "spring", damping: 20 }}
           >
-            <motion.img src={giftImg(currentStore.id)} alt="" className="block mx-auto mb-2 object-contain"
-              style={{ width: "clamp(64px,11vw,128px)", height: "clamp(64px,11vw,128px)", filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.5))" }}
-              animate={{ y: [0, -6, 0] }} transition={{ duration: 2, repeat: Infinity }} />
+            {currentStore.logo ? (
+              <motion.img src={currentStore.logo} alt="" className="block mx-auto mb-2 object-contain rounded-xl"
+                style={{ width: "clamp(64px,11vw,128px)", height: "clamp(64px,11vw,128px)", filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.5))" }}
+                animate={{ y: [0, -6, 0] }} transition={{ duration: 2, repeat: Infinity }} />
+            ) : (
+              <motion.div className="mx-auto mb-2 rounded-xl flex items-center justify-center text-white/50 text-xs border border-white/20"
+                style={{ width: "clamp(64px,11vw,128px)", height: "clamp(64px,11vw,128px)", background: "rgba(255,255,255,0.08)" }}
+                animate={{ y: [0, -6, 0] }} transition={{ duration: 2, repeat: Infinity }}>
+                חסר לוגו
+              </motion.div>
+            )}
             <span className="block font-black leading-tight mb-2" style={{
               fontSize: "clamp(36px,6vw,62px)",
-              background: `linear-gradient(135deg, ${currentStore.color} 0%, #fff 50%, ${currentStore.color} 100%)`,
-              backgroundSize: "200% auto", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-              backgroundClip: "text", filter: "drop-shadow(0 3px 8px rgba(0,0,0,0.6))", animation: "shimmer 2.5s linear infinite",
+              color: "#fff",
+              textShadow: `0 0 28px ${currentStore.color}, 0 0 12px ${currentStore.color}99, 0 2px 10px rgba(0,0,0,0.85)`,
             }}>{currentStore.name}</span>
             <span className="block font-bold text-white" style={{ fontSize: "clamp(20px,3.5vw,32px)", textShadow: "0 2px 16px rgba(0,0,0,0.9)" }}>
               {currentStore.gift}
@@ -793,14 +892,19 @@ export default function SummerFairGame() {
             {currentItem && isBomb(currentItem) ? (
               <div className="flex items-center justify-center text-[clamp(70px,14vw,140px)] leading-none">{(currentItem as SummerBomb).emoji}</div>
             ) : currentStore ? (
-              <>
-                <img src={giftImg(currentStore.id)} alt={currentStore.name} className="object-contain"
-                  style={{ width: "clamp(100px,17vw,240px)", height: "clamp(100px,17vw,240px)", filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.4))" }} />
-                <span className="absolute font-bold text-white" style={{
-                  bottom: -22, left: "50%", transform: "translateX(-50%)",
-                  fontSize: "clamp(7px,1.2vw,11px)", textShadow: "0 1px 4px rgba(0,0,0,1)", whiteSpace: "nowrap",
-                }}>{currentStore.name}</span>
-              </>
+              <div className="flex flex-col items-center justify-center gap-1 w-full h-full">
+                {currentStore.logo ? (
+                  <img src={currentStore.logo} alt={currentStore.name} className="object-contain rounded-lg"
+                    style={{ width: "clamp(48px,8vw,110px)", height: "clamp(48px,8vw,110px)", filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.5))" }} />
+                ) : (
+                  <div className="rounded-lg flex items-center justify-center text-white/50 border border-white/20"
+                    style={{ width: "clamp(48px,8vw,110px)", height: "clamp(48px,8vw,110px)", background: "rgba(255,255,255,0.08)", fontSize: "clamp(8px,1.2vw,12px)" }}>
+                    חסר לוגו
+                  </div>
+                )}
+                <img src={giftImg(currentStore.id)} alt="" className="object-contain"
+                  style={{ width: "clamp(44px,7vw,100px)", height: "clamp(44px,7vw,100px)", filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.4))" }} />
+              </div>
             ) : null}
           </div>
         </div>
@@ -840,59 +944,83 @@ export default function SummerFairGame() {
       {/* ── Intro Overlay ── */}
       <AnimatePresence>
         {phase === "intro" && (
-          <motion.div className="fixed inset-0 z-[400] flex flex-col items-center justify-center gap-5 overflow-hidden"
-            style={{ backgroundImage: "url('/summerfair/beach.gif')", backgroundSize: "cover", backgroundPosition: "center" }}
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
-            <div className="absolute inset-0" style={{ background: "rgba(0,10,30,0.45)" }} />
-            <motion.img src="/summerfair/thefisher.png" alt="" className="absolute bottom-0 left-5 pointer-events-none z-[2]"
-              style={{ width: "clamp(160px,24vw,320px)", filter: "drop-shadow(0 8px 20px rgba(0,0,0,0.5))" }}
-              animate={{ y: [0, -12, 0] }} transition={{ duration: 3, repeat: Infinity }} />
-            <div className="absolute bottom-0 left-0 right-0 h-[90px] pointer-events-none"
-              style={{ background: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 90'%3E%3Cpath fill='rgba(18,160,140,0.35)' d='M0,45 C240,90 480,0 720,45 C960,90 1200,0 1440,45 L1440,90 L0,90 Z'/%3E%3C/svg%3E\") center/cover no-repeat", animation: "waveDrift 5s ease-in-out infinite alternate" }} />
+          <motion.div className="fixed inset-0 z-[400] flex flex-col items-center justify-center overflow-hidden"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
 
-            <motion.h1 className="relative z-[2] font-black" style={{ fontSize: "clamp(38px,7vw,70px)", letterSpacing: 4, background: "linear-gradient(135deg, #ffe566 0%, #ffaa33 50%, #ff6b35 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", filter: "drop-shadow(0 3px 14px rgba(255,160,50,0.55))" }}
-              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>יריד הקיץ</motion.h1>
-            <motion.div className="relative z-[2] uppercase tracking-widest font-light" style={{ color: "rgba(255,255,255,0.45)", fontSize: "clamp(12px,1.8vw,16px)", letterSpacing: 6, marginTop: -14 }}
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>Summer Fair</motion.div>
+            <AnimatePresence mode="wait">
+              {introStep < 3 ? (
+                /* ── Welcome phase ── */
+                <motion.div key="welcome" className="relative z-[2] text-center px-6 py-8 flex flex-col gap-4"
+                  style={{ maxWidth: "min(90vw,580px)" }}
+                  exit={{ opacity: 0, y: -20, transition: { duration: 0.5 } }}>
+                  <motion.h1 className="font-black leading-tight"
+                    style={{ fontSize: "clamp(28px,5vw,56px)", color: "#1e40af", textShadow: "0 2px 12px rgba(255,255,255,0.9), 0 0 30px rgba(255,255,255,0.6)" }}
+                    initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+                    ברוכים הבאים למשחק דייג המתנות 🎣
+                  </motion.h1>
 
-            {/* Video */}
-            <motion.div className="relative z-[2] w-full overflow-hidden rounded-2xl shadow-2xl"
-              style={{ maxWidth: "min(88vw, 560px)", aspectRatio: "16/9", boxShadow: "0 0 0 2px rgba(255,200,60,0.4), 0 20px 70px rgba(0,0,0,0.7)" }}
-              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
-              <iframe
-                src="https://www.youtube.com/embed/usPBdPkKDCo"
-                allow="autoplay; encrypted-media"
-                allowFullScreen
-                className="w-full h-full border-0 block"
-              />
-            </motion.div>
+                  <AnimatePresence>
+                    {introStep >= 1 && (
+                      <motion.p className="font-bold leading-relaxed"
+                        style={{ fontSize: "clamp(17px,2.8vw,34px)", color: "#1d4ed8", textShadow: "0 2px 10px rgba(255,255,255,0.9), 0 0 24px rgba(255,255,255,0.5)" }}
+                        initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+                        תעלו על סירת הדייגים ותתחילו לדוג... מתנות!<br />
+                        המתנות שתצליחו לדוג יארזו וישלחו אליכם<br />
+                        ישירות לתיבת המייל
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
 
-            {/* Step-by-step instructions */}
-            <motion.div className="relative z-[2] grid grid-cols-2 gap-2 w-full"
-              style={{ maxWidth: "min(88vw, 560px)" }}
-              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
-              {[
-                { emoji: "🎁", text: "בים צפות מתנות מעסקים מדהימים" },
-                { emoji: "⛵", text: "גררי את הסירה למתנה שאת רוצה" },
-                { emoji: "👆", text: "לחצי על הסירה כשהיא מעל המתנה" },
-                { emoji: "🎉", text: "המתנה בדרך אלייך!" },
-              ].map((step, i) => (
-                <motion.div key={i}
-                  className="flex items-center gap-2 rounded-2xl px-4 py-3"
-                  style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(10px)" }}
-                  initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 + i * 0.07 }}>
-                  <span className="text-2xl flex-shrink-0">{step.emoji}</span>
-                  <span className="text-white/90 font-semibold leading-snug" style={{ fontSize: "clamp(11px,1.5vw,14px)" }}>{step.text}</span>
+                  <AnimatePresence>
+                    {introStep >= 2 && (
+                      <motion.p className="font-black"
+                        style={{ fontSize: "clamp(20px,3.5vw,42px)", color: "#1e3a8a", textShadow: "0 2px 12px rgba(255,255,255,0.9), 0 0 30px rgba(255,255,255,0.6)" }}
+                        initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+                        בואו נראה כמה אתם דיגים מומחים 😄
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
                 </motion.div>
-              ))}
-            </motion.div>
+              ) : (
+                /* ── Instructions phase ── */
+                <motion.div key="instructions" className="relative z-[2] text-center px-6 py-8 flex flex-col gap-3"
+                  style={{ maxWidth: "min(90vw,520px)" }}
+                  initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+                  {[
+                    { emoji: "⛵", text: "עומדים על הסירה", highlight: true },
+                    { emoji: "🖱️", text: "גוררים עם העכבר לכיוון המתנה" },
+                    { emoji: "👆", text: "לוחצים על הסירה כשהיא מעל המתנה" },
+                    { emoji: "🎁", text: "הצלחתם? זכיתם במתנה!" },
+                  ].map((step, i) => (
+                    <AnimatePresence key={i}>
+                      {introStep >= 4 + i && (
+                        <motion.div className="flex items-center gap-3 px-2 py-1 text-right"
+                          style={{ background: "transparent" }}
+                          initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4 }}>
+                          <span className="text-2xl flex-shrink-0">{step.emoji}</span>
+                          <span className={`font-${step.highlight ? "black" : "bold"} leading-snug`}
+                            style={{ fontSize: "clamp(18px,3vw,36px)", color: step.highlight ? "#1e3a8a" : "#1d4ed8", textShadow: "0 2px 8px rgba(255,255,255,0.9)" }}>
+                            {step.text}
+                          </span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  ))}
 
-            <motion.button onClick={() => setPhase("email")} className="relative z-[2] font-black rounded-full border-0"
-              style={{ background: "linear-gradient(135deg, #ffe566, #ff8c00)", color: "#1a0800", padding: "clamp(14px,2.5vw,32px) clamp(56px,10vw,128px)", fontSize: "clamp(20px,3.5vw,40px)", boxShadow: "0 8px 36px rgba(255,150,0,.6), 0 0 0 3px rgba(255,220,80,0.25)", letterSpacing: 1 }}
-              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
-              whileHover={{ scale: 1.06, y: -4 }} whileTap={{ scale: 0.97 }}>
-              שנתחיל
-            </motion.button>
+                  <AnimatePresence>
+                    {introStep >= 8 && (
+                      <motion.button onClick={() => setPhase("email")}
+                        className="mt-2 font-black rounded-full border-0 self-center"
+                        style={{ background: "linear-gradient(135deg,#ffe566,#ff8c00)", color: "#1a0800", padding: "clamp(12px,2vw,20px) clamp(40px,7vw,90px)", fontSize: "clamp(18px,3vw,32px)", boxShadow: "0 6px 28px rgba(255,150,0,.6)" }}
+                        initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: "spring", damping: 18 }}
+                        whileHover={{ scale: 1.06, y: -3 }} whileTap={{ scale: 0.97 }}>
+                        שנתחיל!
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>
@@ -927,15 +1055,26 @@ export default function SummerFairGame() {
                 boxShadow: "0 0 80px rgba(255,220,50,.35), 0 30px 80px rgba(0,0,0,.6)" }}
               initial={{ scale: 0.2, y: 120, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }}
               transition={{ type: "spring", damping: 22, stiffness: 300, delay: 0.1 }}>
-              <motion.img src={giftImg(currentStore.id)} alt="" style={{ width: 90, height: 90, objectFit: "contain", filter: "drop-shadow(0 4px 16px rgba(0,0,0,0.5))" }}
-                className="mx-auto block mb-2" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", delay: 0.3 }} />
+              {currentStore.logo ? (
+                <motion.img src={currentStore.logo} alt={currentStore.name}
+                  style={{ width: 90, height: 90, objectFit: "contain", filter: "drop-shadow(0 4px 16px rgba(0,0,0,0.5))" }}
+                  className="mx-auto block mb-2 rounded-xl" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", delay: 0.3 }} />
+              ) : (
+                <motion.div className="mx-auto mb-2 rounded-xl flex items-center justify-center text-white/40 text-xs border border-white/20"
+                  style={{ width: 90, height: 90, background: "rgba(255,255,255,0.06)" }}
+                  initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", delay: 0.3 }}>
+                  חסר לוגו
+                </motion.div>
+              )}
               <div className="text-white/55 uppercase tracking-widest mb-1" style={{ fontSize: "clamp(11px,1.8vw,18px)", letterSpacing: 3 }}>תפסת מתנה מ</div>
               <div className="font-black leading-tight mb-4" style={{ fontSize: "clamp(32px,5.8vw,56px)", background: "linear-gradient(135deg,#FFD700,#FFA500,#FFD700)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", filter: "drop-shadow(0 0 20px rgba(255,200,0,.6))" }}>
                 {currentStore.name}
               </div>
               <div className="h-0.5 w-[140px] mx-auto mb-4" style={{ background: "linear-gradient(90deg,transparent,rgba(255,215,0,.8),transparent)" }} />
               <div className="text-white/50 mb-2 uppercase tracking-widest" style={{ fontSize: "clamp(12px,2vw,18px)" }}>המתנה שלך</div>
-              <div className="text-white font-bold" style={{ fontSize: "clamp(20px,3.5vw,38px)" }}>{currentStore.gift}</div>
+              <div className="text-white font-bold" style={{ fontSize: "clamp(20px,3.5vw,38px)" }}>
+                {currentStore.gift === MISSING_GIFT ? <span className="text-yellow-400/60 text-lg">חסר תיאור מתנה</span> : currentStore.gift}
+              </div>
             </motion.div>
           </motion.div>
         )}
