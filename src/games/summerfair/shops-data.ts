@@ -3,6 +3,7 @@ export interface SummerStore {
   name: string;
   gift: string;
   color: string;
+  alsoInGiftFair?: boolean;
 }
 
 export interface SummerBomb {
@@ -17,26 +18,30 @@ export interface SummerBomb {
 export type SummerItem = SummerStore | SummerBomb;
 
 export const STORES: SummerStore[] = [
-  { id: 1,  name: "מאפיית הזהב",    gift: "לחם מקושט במתנה",     color: "#C0392B" },
-  { id: 2,  name: "פרחי עדן",       gift: "זר פרחים קסום",        color: "#8E44AD" },
-  { id: 3,  name: "קפה בוקר",       gift: "קפה חודשי בחינם",      color: "#6D4C41" },
-  { id: 4,  name: "ספא ריביירה",    gift: "טיפול פנים מתנה",      color: "#AD1457" },
-  { id: 5,  name: "ספריית עמק",     gift: "ספר לבחירתך",          color: "#1565C0" },
-  { id: 6,  name: "גן ירק טרי",     gift: "סל ירקות שבועי",       color: "#2E7D32" },
-  { id: 7,  name: "פיצרייה נאפולי", gift: "פיצה משפחתית",         color: "#E65100" },
-  { id: 8,  name: "חנות הצעצועים",  gift: "צעצוע לבחירה",         color: "#F57F17" },
-  { id: 9,  name: "סטודיו יוגה",    gift: "שיעור ניסיון חינם",    color: "#00695C" },
-  { id: 10, name: "תכשיטי מור",     gift: "שרשרת כסף מתנה",       color: "#4527A0" },
-  { id: 11, name: "מעדניית פריז",   gift: "מגש גבינות",           color: "#F9A825" },
-  { id: 12, name: "חנות הכלבים",    gift: "שקית מזון פרמיום",     color: "#BF360C" },
-  { id: 13, name: "גלידריית קינג",  gift: "גלידה כפולה חינם",     color: "#0277BD" },
-  { id: 14, name: "סלון הספרות",    gift: "תספורת מתנה",          color: "#558B2F" },
-  { id: 15, name: "חנות הבגדים",    gift: "שובר ₪100",            color: "#880E4F" },
-  { id: 16, name: "מרפאת שיניים",   gift: "בדיקה חינם",           color: "#006064" },
-  { id: 17, name: "חנות הספורט",    gift: "גרבי ספורט מתנה",      color: "#D84315" },
-  { id: 18, name: "בית הקפה הסודי", gift: "עוגה ביתית חינם",      color: "#6A1B9A" },
-  { id: 19, name: "אופטיקה רואים",  gift: "בדיקת ראייה חינם",     color: "#37474F" },
-  { id: 20, name: "מסעדת הים",      gift: "מנה ראשונה חינם",      color: "#004D40" },
+  { id: 1,  name: "פסק זמן",            gift: "ספר מתכונים מיוחד: אייסים, שייקים, פרוזנים, ברדים וגלידות ביתיות",           color: "#F97316" },
+  { id: 2,  name: "רבקה זילבר",          gift: "איך להתחיל לצבור הון ומיינדסט של עשירים",                                     color: "#CA8A04" },
+  { id: 3,  name: "דינה רוזנפלד",        gift: "מתנה מיוחדת ביריד החופש",                                                       color: "#E879A4" },
+  { id: 4,  name: "רוחמה בורד",          gift: "הגרלה על שואב שוטף",                                                           color: "#7C3AED" },
+  { id: 5,  name: "אושרית טולדנו",       gift: "בוט מעצב מאושר PRO",                                                           color: "#6366F1" },
+  { id: 6,  name: "רבקי מלוביצקי",       gift: "4 סרטוני תסרוקות בחינם – שהבת שלך תצליח גם בלי שום ניסיון",                   color: "#DB2777" },
+  { id: 7,  name: "דבורי זילברשטיין",    gift: "הדרכה לכיוון המצלמה",                                                          color: "#0891B2" },
+  { id: 8,  name: "ציבעונילי",           gift: "\"מה אהבתי תורתך\" – ערכת יצירה לילדים",                                       color: "#F59E0B" },
+  { id: 9,  name: "טלאל",               gift: "משחקי למידה להדפסה – תעסוקה מושלמת לחופשה",                                    color: "#16A34A" },
+  { id: 10, name: "שרי בורנשטיין",       gift: "מתנה מיוחדת ביריד החופש",                                                       color: "#2563EB" },
+  { id: 11, name: "שרי וינברג",          gift: "תיקח את המתנה מיריד המתנות",                                                    color: "#9333EA", alsoInGiftFair: true },
+  { id: 12, name: "מ גרינבוים",          gift: "תיקח את המתנה מיריד המתנות",                                                    color: "#BE185D", alsoInGiftFair: true },
+  { id: 13, name: "אתי בלאק",            gift: "חדר בריחה להדפסה – פיצה משפחתית",                                              color: "#0369A1" },
+  { id: 14, name: "מגזין לעצמך",         gift: "מתנה מיוחדת ביריד החופש",                                                       color: "#92400E" },
+  { id: 15, name: "ליבדיק",             gift: "מתנה מיוחדת ביריד החופש",                                                       color: "#065F46" },
+  { id: 16, name: "מיכל ניאזוף",         gift: "תיקח את המתנה מיריד המתנות",                                                    color: "#4338CA", alsoInGiftFair: true },
+  { id: 17, name: "מלכי",               gift: "3 מסרים שהמתבגר/ת שלך מקווה שתקלטי בעצמך",                                    color: "#B45309" },
+  { id: 18, name: "יהודית שטיינברג",     gift: "מתנה מיוחדת ביריד החופש",                                                       color: "#0F766E" },
+  { id: 19, name: "יעל פינגולד",         gift: "מתנה מיוחדת ביריד החופש",                                                       color: "#7E22CE" },
+  { id: 20, name: "רחל כץ",             gift: "מתנה מיוחדת ביריד החופש",                                                       color: "#B91C1C" },
+  { id: 21, name: "שרה קצבורג",          gift: "מתנה מיוחדת ביריד החופש",                                                       color: "#1D4ED8" },
+  { id: 22, name: "תהילה אדלר",          gift: "מתנה מיוחדת ביריד החופש",                                                       color: "#15803D" },
+  { id: 23, name: "סטודיו מפרש",         gift: "מתנה מיוחדת ביריד החופש",                                                       color: "#0284C7" },
+  { id: 24, name: "יעל גוטסמן",          gift: "מתנה מיוחדת ביריד החופש",                                                       color: "#DC2626" },
 ];
 
 export const BOMBS: SummerBomb[] = [
