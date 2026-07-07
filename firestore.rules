@@ -37,6 +37,8 @@ service cloud.firestore {
       match /finale_leads/{finaleId} {
         allow read: if true;
         allow create: if true;
+        // Progressive save: allow updating only the running catch-progress fields
+        allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['shopIds', 'caughtCount', 'updatedAt']);
       }
 
       // Early signups (email dialog at game start)
