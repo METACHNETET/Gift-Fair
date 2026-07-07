@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, updateDoc, doc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { STORES, buildQueue, giftImg, SummerItem, SummerStore, SummerBomb, MISSING_GIFT } from "./shops-data";
 import { toast } from "sonner";
@@ -245,7 +245,7 @@ function FinaleDialog({
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState(prefillEmail);
-  const [agreed, setAgreed] = useState(false);
+  const [agreed, setAgreed] = useState(!!prefillEmail);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
 
@@ -339,24 +339,6 @@ function FinaleDialog({
                 עבדת קשה — עכשיו תנוחי 😊<br />
                 אנחנו כבר נדאג למשלוח
               </p>
-
-              {/* Caught gifts summary */}
-              {caughtStores.length > 0 && (
-                <div className="mb-5">
-                  <p className="text-center font-bold text-sky-700 text-sm mb-3">המתנות שתפסת ✅</p>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {caughtStores.map(store => (
-                      <div key={store.id} className="flex items-center gap-1 bg-sky-50 border border-sky-200 rounded-full px-3 py-1">
-                        {store.logo
-                          ? <img src={store.logo} alt="" className="w-5 h-5 object-contain rounded" />
-                          : <div className="w-5 h-5 rounded flex items-center justify-center bg-sky-100 text-sky-400" style={{ fontSize: 7 }}>לוגו</div>
-                        }
-                        <span className="text-xs font-semibold text-sky-800">{store.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Uncaught extras */}
               {uncaught.length > 0 && (
@@ -492,8 +474,10 @@ export default function SummerFairGame() {
 
   // ── User info ──
   const [userEmail, setUserEmail] = useState("");
+  const userEmailRef = useRef("");
   const hasConsentRef = useRef(false);
   const hasShownEmailAfterFirstWin = useRef(false);
+  const progressDocIdRef = useRef<string | null>(null);
 
   // ── Score / tracking ──
   const [scoreCaught, setScoreCaught] = useState(0);
@@ -541,25 +525,50 @@ export default function SummerFairGame() {
   const [sandGifts, setSandGifts] = useState<{ id: number; x: number; bottom: number; deg: number }[]>([]);
 
   // ─── Fisher helpers ─────────────────────────────────────────────────────────
+  const vh = () => window.visualViewport?.height ?? window.innerHeight;
+
   const minY = useCallback(() => {
     const f = fisherRef.current;
-    return f ? window.innerHeight * (3 / 4) - (2 / 3) * f.offsetHeight : window.innerHeight * 0.6;
+    return f ? vh() * (3 / 4) - (2 / 3) * f.offsetHeight : vh() * 0.6;
   }, []);
 
   const moveFisherTo = useCallback((x: number, y: number) => {
     const f = fisherRef.current;
     if (!f) return;
-    f.style.left = Math.max(window.innerWidth * 0.15, Math.min(x, window.innerWidth - f.offsetWidth)) + "px";
-    f.style.top = Math.max(minY(), Math.min(y, window.innerHeight - f.offsetHeight)) + "px";
+    f.style.left = Math.max(0, Math.min(x, window.innerWidth - f.offsetWidth)) + "px";
+    f.style.top = Math.max(minY(), Math.min(y, vh() - f.offsetHeight - 4)) + "px";
     f.style.transform = "none";
   }, [minY]);
 
   const initFisherPos = useCallback(() => {
     const f = fisherRef.current;
     if (!f) return;
-    f.style.left = window.innerWidth * 0.18 + "px";
-    f.style.top = minY() + "px";
+    const fw = f.offsetWidth || 160;
+    const fh = f.offsetHeight || fw * 0.75;
+    const safeTop = Math.min(minY(), vh() - fh - 10);
+    f.style.left = Math.max(0, window.innerWidth * 0.65 - fw / 2) + "px";
+    f.style.top = safeTop + "px";
+    f.style.transform = "none";
   }, [minY]);
+
+  // ─── Progressive lead saving ──────────────────────────────────────────────────
+  const saveProgress = useCallback(async (email: string, caught: SummerStore[]) => {
+    if (!email || caught.length === 0) return;
+    const shopIds = caught.map(s => String(s.id));
+    try {
+      if (progressDocIdRef.current) {
+        await updateDoc(doc(db, "fairs", "summerfair", "finale_leads", progressDocIdRef.current), {
+          shopIds, caughtCount: caught.length, updatedAt: serverTimestamp(),
+        });
+      } else {
+        const ref = await addDoc(collection(db, "fairs", "summerfair", "finale_leads"), {
+          email, name: "", shopIds, caughtCount: caught.length,
+          ref: refParam, claimedAt: serverTimestamp(),
+        });
+        progressDocIdRef.current = ref.id;
+      }
+    } catch (err) { console.error("[summerfair progress]", err); }
+  }, [refParam]);
 
   // ─── Game logic ─────────────────────────────────────────────────────────────
   const onCatch = useCallback(() => {
@@ -581,6 +590,7 @@ export default function SummerFairGame() {
       setScoreCaught(c => c + 1);
       caughtStoresRef.current = [...caughtStoresRef.current, store];
       setCaughtStores([...caughtStoresRef.current]);
+      if (hasConsentRef.current) saveProgress(userEmailRef.current, caughtStoresRef.current);
       setSandGifts(prev => [...prev, {
         id: store.id,
         x: Math.random() * (window.innerWidth * 0.2 - 70),
@@ -752,6 +762,10 @@ export default function SummerFairGame() {
       const t = e.touches[0]; moveFisherTo(t.clientX - offXRef.current, t.clientY - offYRef.current); e.preventDefault();
     };
 
+    const onVpResize = () => initFisherPos();
+    window.visualViewport?.addEventListener("resize", onVpResize);
+    window.addEventListener("resize", onVpResize);
+
     f.addEventListener("mousedown", onMD);
     document.addEventListener("mousemove", onMM);
     document.addEventListener("mouseup", onMU);
@@ -764,6 +778,8 @@ export default function SummerFairGame() {
       document.removeEventListener("mouseup", onMU);
       f.removeEventListener("touchstart", onTS);
       document.removeEventListener("touchmove", onTM);
+      window.visualViewport?.removeEventListener("resize", onVpResize);
+      window.removeEventListener("resize", onVpResize);
     };
   }, [initFisherPos, moveFisherTo, onCatch]);
 
@@ -771,6 +787,7 @@ export default function SummerFairGame() {
   const handleEmailStart = async (email: string, consent: boolean) => {
     if (email && consent) {
       setUserEmail(email);
+      userEmailRef.current = email;
       hasConsentRef.current = true;
       try {
         await addDoc(collection(db, "fairs", "summerfair", "early_signups"), {
@@ -786,12 +803,15 @@ export default function SummerFairGame() {
   const handleEmailAfterFirstWin = async (email: string, consent: boolean) => {
     if (email && consent) {
       setUserEmail(email);
+      userEmailRef.current = email;
       hasConsentRef.current = true;
       try {
         await addDoc(collection(db, "fairs", "summerfair", "early_signups"), {
           email, marketingConsent: true, signedUpAt: serverTimestamp(), ref: refParam,
         });
       } catch (err) { console.error("[summerfair early_signup]", err); }
+      // save already-caught stores immediately
+      saveProgress(email, caughtStoresRef.current);
     }
     // continue game
     pausedRef.current = false;
@@ -802,6 +822,7 @@ export default function SummerFairGame() {
   const startGame = useCallback(() => {
     queueRef.current = buildQueue();
     caughtStoresRef.current = [];
+    progressDocIdRef.current = null;
     setCaughtStores([]);
     setScoreCaught(0);
     setScoreMissed(0);
@@ -839,7 +860,8 @@ export default function SummerFairGame() {
       {/* Fisher */}
       <img ref={fisherRef} src="/summerfair/thefisher.png" draggable={false} alt=""
         className="absolute z-20 select-none"
-        style={{ width: "clamp(160px,25vw,380px)", cursor: "grab", touchAction: "none",
+        style={{ width: "clamp(120px,20vw,340px)", maxHeight: "28vh", objectFit: "contain",
+          cursor: "grab", touchAction: "none",
           filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.4))",
           display: phase === "finale" ? "none" : "block" }} />
 
@@ -847,28 +869,27 @@ export default function SummerFairGame() {
       <AnimatePresence>
         {(phase === "playing" || phase === "win") && showGift && currentStore && (
           <motion.div
-            className="fixed top-[60px] left-1/2 text-center z-50 pointer-events-none"
-            style={{ transform: "translateX(-50%)", width: "90vw", maxWidth: 700 }}
+            className="fixed top-[60px] inset-x-0 z-50 pointer-events-none flex flex-col items-center text-center px-4"
             initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
             transition={{ type: "spring", damping: 20 }}
           >
             {currentStore.logo ? (
-              <motion.img src={currentStore.logo} alt="" className="block mx-auto mb-2 object-contain rounded-xl"
-                style={{ width: "clamp(64px,11vw,128px)", height: "clamp(64px,11vw,128px)", filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.5))" }}
+              <motion.img src={currentStore.logo} alt="" className="block mb-2 object-contain rounded-xl"
+                style={{ width: "clamp(90px,16vw,200px)", height: "clamp(90px,16vw,200px)", filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.5))" }}
                 animate={{ y: [0, -6, 0] }} transition={{ duration: 2, repeat: Infinity }} />
             ) : (
-              <motion.div className="mx-auto mb-2 rounded-xl flex items-center justify-center text-white/50 text-xs border border-white/20"
-                style={{ width: "clamp(64px,11vw,128px)", height: "clamp(64px,11vw,128px)", background: "rgba(255,255,255,0.08)" }}
+              <motion.div className="mb-2 rounded-xl flex items-center justify-center text-white/50 text-xs border border-white/20"
+                style={{ width: "clamp(90px,16vw,200px)", height: "clamp(90px,16vw,200px)", background: "rgba(255,255,255,0.08)" }}
                 animate={{ y: [0, -6, 0] }} transition={{ duration: 2, repeat: Infinity }}>
                 חסר לוגו
               </motion.div>
             )}
-            <span className="block font-black leading-tight mb-2" style={{
-              fontSize: "clamp(36px,6vw,62px)",
+            <span className="block font-black leading-tight mb-1 w-full" style={{
+              fontSize: "clamp(22px,5vw,56px)",
               color: "#fff",
               textShadow: `0 0 28px ${currentStore.color}, 0 0 12px ${currentStore.color}99, 0 2px 10px rgba(0,0,0,0.85)`,
             }}>{currentStore.name}</span>
-            <span className="block font-bold text-white" style={{ fontSize: "clamp(20px,3.5vw,32px)", textShadow: "0 2px 16px rgba(0,0,0,0.9)" }}>
+            <span className="block font-bold text-white w-full" style={{ fontSize: "clamp(14px,3vw,28px)", textShadow: "0 2px 16px rgba(0,0,0,0.9)", maxWidth: 600 }}>
               {currentStore.gift}
             </span>
           </motion.div>
