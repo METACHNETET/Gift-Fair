@@ -869,7 +869,7 @@ export default function SummerFairGame() {
   const currentBomb = currentItem && isBomb(currentItem) ? (currentItem as SummerBomb) : null;
 
   return (
-    <div className="fixed inset-0 overflow-hidden" style={{ fontFamily: "'Heebo', sans-serif", cursor: phase === "playing" ? "none" : "auto" }} dir="rtl">
+    <div className="summer-fair-root fixed inset-0 overflow-hidden" style={{ fontFamily: "'Heebo', sans-serif", cursor: phase === "playing" ? "none" : "auto" }} dir="rtl">
       {/* Background */}
       <div className="absolute inset-0" style={{
         backgroundImage: "url('/summerfair/beach.gif')",
@@ -907,11 +907,11 @@ export default function SummerFairGame() {
             <div className={`flex flex-col items-center rounded-2xl ${currentStore.highlighted ? "summer-highlight px-5 py-4" : ""}`}>
               {currentStore.logo ? (
                 <motion.img src={currentStore.logo} alt="" className="block mb-2 object-contain rounded-xl"
-                  style={{ width: "clamp(90px,16vw,200px)", height: "clamp(90px,16vw,200px)", filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.5))" }}
+                  style={{ width: "clamp(110px,20vw,260px)", height: "clamp(110px,20vw,260px)", filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.5))" }}
                   animate={{ y: [0, -6, 0] }} transition={{ duration: 2, repeat: Infinity }} />
               ) : (
                 <motion.div className="mb-2 rounded-xl flex items-center justify-center text-white/50 text-xs border border-white/20"
-                  style={{ width: "clamp(90px,16vw,200px)", height: "clamp(90px,16vw,200px)", background: "rgba(255,255,255,0.08)" }}
+                  style={{ width: "clamp(110px,20vw,260px)", height: "clamp(110px,20vw,260px)", background: "rgba(255,255,255,0.08)" }}
                   animate={{ y: [0, -6, 0] }} transition={{ duration: 2, repeat: Infinity }}>
                   חסר לוגו
                 </motion.div>
@@ -921,7 +921,7 @@ export default function SummerFairGame() {
                 color: "#fff",
                 textShadow: `0 0 28px ${currentStore.color}, 0 0 12px ${currentStore.color}99, 0 2px 10px rgba(0,0,0,0.85)`,
               }}>{currentStore.name}</span>
-              <span className="block font-bold text-white w-full" style={{ fontSize: "clamp(14px,3vw,28px)", textShadow: "0 2px 16px rgba(0,0,0,0.9)", maxWidth: 600 }}>
+              <span className="block font-bold text-white w-full" style={{ fontSize: "clamp(14px,3vw,28px)", textShadow: "0 2px 16px rgba(0,0,0,0.9)", maxWidth: 600, whiteSpace: "pre-line" }}>
                 {currentStore.gift}
               </span>
             </div>
@@ -949,10 +949,10 @@ export default function SummerFairGame() {
               <div className="flex flex-col items-center justify-center gap-1 w-full h-full">
                 {currentStore.logo ? (
                   <img src={currentStore.logo} alt={currentStore.name} className="object-contain rounded-lg"
-                    style={{ width: "clamp(48px,8vw,110px)", height: "clamp(48px,8vw,110px)", filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.5))" }} />
+                    style={{ width: "clamp(58px,10vw,130px)", height: "clamp(58px,10vw,130px)", filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.5))" }} />
                 ) : (
                   <div className="rounded-lg flex items-center justify-center text-white/50 border border-white/20"
-                    style={{ width: "clamp(48px,8vw,110px)", height: "clamp(48px,8vw,110px)", background: "rgba(255,255,255,0.08)", fontSize: "clamp(8px,1.2vw,12px)" }}>
+                    style={{ width: "clamp(58px,10vw,130px)", height: "clamp(58px,10vw,130px)", background: "rgba(255,255,255,0.08)", fontSize: "clamp(8px,1.2vw,12px)" }}>
                     חסר לוגו
                   </div>
                 )}
@@ -984,30 +984,50 @@ export default function SummerFairGame() {
         ← ירידים
       </button>
 
-      {/* ─ Sponsor badge ──────────────────────────────────────────── */}
-      <div
-        className="fixed bottom-4 left-4 z-50 flex flex-col items-center gap-2 px-4 py-3"
-        dir="rtl"
-        style={{
-          width: 200,
-          background: "linear-gradient(150deg, rgba(10,14,30,0.94) 0%, rgba(13,30,60,0.94) 100%)",
-          backdropFilter: "blur(10px)",
-          border: "1.5px solid rgba(255,215,0,0.35)",
-          borderRadius: 18,
-          boxShadow: "0 6px 28px rgba(0,0,0,0.55), 0 0 24px rgba(255,180,0,0.15)",
-        }}
-      >
-        <span style={{ fontSize: 12, fontWeight: 800, color: "#FFD700", letterSpacing: "0.1em", textTransform: "uppercase", textShadow: "0 0 12px rgba(255,200,0,0.5)" }}>
-          היריד בחסות
-        </span>
-        <div className="rounded-xl flex items-center justify-center" style={{ padding: "8px", width: "100%" }}>
-          <img
-            src="/summerfair/logos/special-transparent.png"
-            alt="Special"
-            draggable={false}
-            style={{ width: "100%", height: "auto", maxHeight: 140, objectFit: "contain" }}
-          />
+      {/* ─ Sponsor badge + business owner contact ──────────────────── */}
+      <div className="fixed bottom-4 left-4 z-50 flex flex-col items-center gap-1" dir="rtl" style={{ width: 200 }}>
+        <div
+          className="flex flex-col items-center gap-2 px-4 py-3 w-full"
+          style={{
+            background: "linear-gradient(150deg, rgba(10,14,30,0.94) 0%, rgba(13,30,60,0.94) 100%)",
+            backdropFilter: "blur(10px)",
+            border: "1.5px solid rgba(255,215,0,0.35)",
+            borderRadius: 18,
+            boxShadow: "0 6px 28px rgba(0,0,0,0.55), 0 0 24px rgba(255,180,0,0.15)",
+          }}
+        >
+          <span style={{ fontSize: 12, fontWeight: 800, color: "#FFD700", letterSpacing: "0.1em", textTransform: "uppercase", textShadow: "0 0 12px rgba(255,200,0,0.5)" }}>
+            היריד בחסות
+          </span>
+          <div className="rounded-xl flex items-center justify-center" style={{ padding: "8px", width: "100%" }}>
+            <img
+              src="/summerfair/logos/special-transparent.png"
+              alt="Special"
+              draggable={false}
+              style={{ width: "100%", height: "auto", maxHeight: 140, objectFit: "contain" }}
+            />
+          </div>
         </div>
+
+        <a
+          href="mailto:dvoraz@schoolframe.net"
+          className="flex items-center justify-center gap-2 px-4 py-3 w-full"
+          style={{
+            background: "linear-gradient(135deg, rgba(109,40,217,0.55) 0%, rgba(219,39,119,0.45) 100%)",
+            border: "1.5px solid rgba(255,255,255,0.28)",
+            borderRadius: 18,
+            boxShadow: "0 6px 28px rgba(0,0,0,0.55)",
+            backdropFilter: "blur(10px)",
+            color: "white",
+            textDecoration: "none",
+            cursor: "pointer",
+          }}
+        >
+          <span style={{ fontSize: 22, lineHeight: 1 }}>✉️</span>
+          <span className="font-extrabold text-center leading-tight" style={{ fontSize: 13, textShadow: "0 1px 6px rgba(0,0,0,0.6)" }}>
+            בעל עסק?<br />צור קשר
+          </span>
+        </a>
       </div>
 
       {/* Miss flash */}
@@ -1169,6 +1189,9 @@ export default function SummerFairGame() {
           border: 3px solid rgba(255,255,255,0.25);
           background: transparent;
           animation: summerRedBlink 1.2s ease-in-out infinite;
+        }
+        .summer-fair-root h1, .summer-fair-root h2, .summer-fair-root h3 {
+          font-family: 'Heebo', sans-serif;
         }
       `}</style>
     </div>
