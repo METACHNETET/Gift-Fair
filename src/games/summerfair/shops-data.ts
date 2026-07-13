@@ -59,7 +59,7 @@ export function giftImg(id: number): string {
 }
 
 export function buildQueue(): SummerItem[] {
-  const queue: SummerItem[] = [...STORES].sort(() => Math.random() - 0.5);
+  const queue: SummerItem[] = [...STORES]; // registration order — first to pay, first to appear
   const bombPool: SummerBomb[] = [...BOMBS, ...BOMBS].sort(() => Math.random() - 0.5).slice(0, 3);
   bombPool.forEach((b) => {
     const pos = 2 + Math.floor(Math.random() * (queue.length - 2));
