@@ -199,7 +199,7 @@ function EmailDialog({
               )}
             </div>
             <span className={`text-xs leading-snug ${consentError ? "text-red-600 font-semibold" : "text-stone-600"}`}>
-              אני מאשרת דיוור מהעסקים — שיוכלו לשלוח לי את המתנות 🙂 ומדבורה זילברשטיין מנהלת היריד
+              אני מאשרת דיוור מהעסקים — שיוכלו לשלוח לי את המתנות 🙂 ומדבורה זילברשטיין מנהלת היריד ומספיישל
             </span>
           </label>
 
@@ -276,6 +276,15 @@ function FinaleDialog({
         ref: refParam,
         claimedAt: serverTimestamp(),
       });
+      try {
+        await fetch("/api/summer-thank-you", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: name.trim(), email: email.trim() }),
+        });
+      } catch (mailErr) {
+        console.error("[summerfair thank-you email]", mailErr);
+      }
       setSent(true);
     } catch (err) {
       toast.error("שגיאה — לא נשמר", { description: String(err), duration: 8000 });
@@ -373,7 +382,6 @@ function FinaleDialog({
 
               <form onSubmit={handleSend} className="space-y-4">
                 <input
-                  required
                   type="text"
                   placeholder="השם שלך"
                   dir="rtl"
@@ -403,7 +411,7 @@ function FinaleDialog({
                     )}
                   </div>
                   <span className="text-sm text-stone-600 leading-snug pt-0.5">
-                    ברור שאני מאשרת דיוור — מהעסקים שצריכים לדוור לי את המתנות, ולדבורה זילברשטיין מנהלת היריד
+                    ברור שאני מאשרת דיוור — מהעסקים שצריכים לדוור לי את המתנות, ולדבורה זילברשטיין מנהלת היריד ומספיישל
                   </span>
                 </label>
 
@@ -447,13 +455,6 @@ function FinaleDialog({
                 פרטי המתנות ישלחו לאימייל שלך.<br />
                 תהני מהמתנות! ✨
               </p>
-              <button
-                onClick={onPlayAgain}
-                className="px-6 py-3 rounded-xl font-bold text-white text-sm hover:opacity-80"
-                style={{ background: "linear-gradient(90deg, #0369a1, #0891b2)" }}
-              >
-                עוד סיבוב 🎣
-              </button>
             </motion.div>
           )}
         </div>
@@ -510,12 +511,6 @@ export default function SummerFairGame() {
 
   // ── Fisher refs ──
   const fisherRef = useRef<HTMLImageElement | null>(null);
-  const draggingRef = useRef(false);
-  const offXRef = useRef(0);
-  const offYRef = useRef(0);
-  const mouseDownXRef = useRef(0);
-  const mouseDownYRef = useRef(0);
-  const didDragRef = useRef(false);
 
   // ── Confetti ──
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -523,6 +518,53 @@ export default function SummerFairGame() {
 
   // ── Sand gifts ──
   const [sandGifts, setSandGifts] = useState<{ id: number; x: number; bottom: number; deg: number }[]>([]);
+
+  // ─── Success sound ────────────────────────────────────────────────────────────
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  const ensureAudio = useCallback(() => {
+    if (!audioCtxRef.current) {
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      audioCtxRef.current = new Ctx();
+    }
+    if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
+    return audioCtxRef.current;
+  }, []);
+
+  const playCatchSound = useCallback(() => {
+    const ctx = ensureAudio();
+    const now = ctx.currentTime;
+    [523.25, 659.25, 783.99].forEach((freq, i) => { // C5, E5, G5 — bright ascending chime
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const start = now + i * 0.09;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.25, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.28);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.3);
+    });
+  }, [ensureAudio]);
+
+  const playFailSound = useCallback(() => {
+    const ctx = ensureAudio();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(90, now + 0.35);
+    gain.gain.setValueAtTime(0.22, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.4);
+  }, [ensureAudio]);
+
+  useEffect(() => () => { audioCtxRef.current?.close(); }, []);
 
   // ─── Fisher helpers ─────────────────────────────────────────────────────────
   const vh = () => window.visualViewport?.height ?? window.innerHeight;
@@ -584,6 +626,7 @@ export default function SummerFairGame() {
       setShowMissFlash(true);
       setTimeout(() => setShowMissFlash(false), 500);
       setCurrentItem(item);
+      playFailSound();
       setPhase("bomb");
     } else {
       const store = item as SummerStore;
@@ -599,9 +642,11 @@ export default function SummerFairGame() {
       }]);
       setCurrentItem(store);
       startConfetti(store.color);
+      setTimeout(stopConfetti, 2000); // let confetti trail on while the next gift already rises
+      playCatchSound();
       setPhase("win");
     }
-  }, [startConfetti]);
+  }, [startConfetti, stopConfetti, playCatchSound, playFailSound]);
 
   const afterWinClosed = useCallback(() => {
     pausedRef.current = false;
@@ -630,6 +675,7 @@ export default function SummerFairGame() {
     if (item && !isBomb(item)) {
       setScoreMissed(m => m + 1);
       setShowMissFlash(true);
+      playFailSound();
       setTimeout(() => setShowMissFlash(false), 500);
     }
     setTimeout(() => {
@@ -638,7 +684,7 @@ export default function SummerFairGame() {
       else setPhase("finale");
     }, 700);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [playFailSound]);
 
   const tick = useCallback((ts: number) => {
     const wrap = giftWrapRef.current;
@@ -690,12 +736,13 @@ export default function SummerFairGame() {
     rafRef.current = requestAnimationFrame(tick);
   }, [tick]);
 
-  // Auto-close win after 2s
+  // Advance to the next gift quickly — confetti keeps trailing on its own timer,
+  // so participants aren't stuck waiting for it to finish before playing on.
   useEffect(() => {
     if (phase !== "win") return;
-    const t = setTimeout(() => { stopConfetti(); afterWinClosed(); }, 2000);
+    const t = setTimeout(afterWinClosed, 600);
     return () => clearTimeout(t);
-  }, [phase, stopConfetti, afterWinClosed]);
+  }, [phase, afterWinClosed]);
 
   // Intro animation steps
   useEffect(() => {
@@ -734,49 +781,32 @@ export default function SummerFairGame() {
     const onLoad = () => initFisherPos();
     if (f.complete) initFisherPos(); else f.addEventListener("load", onLoad);
 
-    const onMD = (e: MouseEvent) => {
-      draggingRef.current = true; didDragRef.current = false;
-      mouseDownXRef.current = e.clientX; mouseDownYRef.current = e.clientY;
-      const r = f.getBoundingClientRect();
-      offXRef.current = e.clientX - r.left; offYRef.current = e.clientY - r.top;
-      f.style.cursor = "grabbing"; e.preventDefault();
+    const checkCatch = () => {
+      if (pausedRef.current || !activeItemRef.current) return;
+      const br = f.getBoundingClientRect();
+      if (giftXRef.current >= br.left && giftXRef.current <= br.right &&
+          lastBobYRef.current >= br.top && lastBobYRef.current <= br.bottom) onCatch();
     };
     const onMM = (e: MouseEvent) => {
-      if (!draggingRef.current) return;
-      if (Math.hypot(e.clientX - mouseDownXRef.current, e.clientY - mouseDownYRef.current) > 5) didDragRef.current = true;
-      moveFisherTo(e.clientX - offXRef.current, e.clientY - offYRef.current);
-    };
-    const onMU = () => {
-      if (draggingRef.current && !didDragRef.current && !pausedRef.current && activeItemRef.current) {
-        const br = f.getBoundingClientRect();
-        if (giftXRef.current >= br.left && giftXRef.current <= br.right &&
-            lastBobYRef.current >= br.top && lastBobYRef.current <= br.bottom) onCatch();
-      }
-      draggingRef.current = false; f.style.cursor = "grab";
-    };
-    const onTS = (e: TouchEvent) => {
-      const t = e.touches[0], r = f.getBoundingClientRect();
-      offXRef.current = t.clientX - r.left; offYRef.current = t.clientY - r.top; e.preventDefault();
+      moveFisherTo(e.clientX - f.offsetWidth / 2, e.clientY - f.offsetHeight / 2);
+      checkCatch();
     };
     const onTM = (e: TouchEvent) => {
-      const t = e.touches[0]; moveFisherTo(t.clientX - offXRef.current, t.clientY - offYRef.current); e.preventDefault();
+      const t = e.touches[0];
+      moveFisherTo(t.clientX - f.offsetWidth / 2, t.clientY - f.offsetHeight / 2);
+      checkCatch();
+      e.preventDefault();
     };
 
     const onVpResize = () => initFisherPos();
     window.visualViewport?.addEventListener("resize", onVpResize);
     window.addEventListener("resize", onVpResize);
 
-    f.addEventListener("mousedown", onMD);
     document.addEventListener("mousemove", onMM);
-    document.addEventListener("mouseup", onMU);
-    f.addEventListener("touchstart", onTS, { passive: false });
     document.addEventListener("touchmove", onTM, { passive: false });
     return () => {
       f.removeEventListener("load", onLoad);
-      f.removeEventListener("mousedown", onMD);
       document.removeEventListener("mousemove", onMM);
-      document.removeEventListener("mouseup", onMU);
-      f.removeEventListener("touchstart", onTS);
       document.removeEventListener("touchmove", onTM);
       window.visualViewport?.removeEventListener("resize", onVpResize);
       window.removeEventListener("resize", onVpResize);
@@ -820,6 +850,7 @@ export default function SummerFairGame() {
   };
 
   const startGame = useCallback(() => {
+    ensureAudio(); // unlock audio playback while we still have a user gesture
     queueRef.current = buildQueue();
     caughtStoresRef.current = [];
     progressDocIdRef.current = null;
@@ -832,13 +863,13 @@ export default function SummerFairGame() {
     pausedRef.current = false;
     setPhase("playing");
     setTimeout(spawnNext, 600);
-  }, [spawnNext]);
+  }, [spawnNext, ensureAudio]);
 
   const currentStore = currentItem && !isBomb(currentItem) ? (currentItem as SummerStore) : null;
   const currentBomb = currentItem && isBomb(currentItem) ? (currentItem as SummerBomb) : null;
 
   return (
-    <div className="fixed inset-0 overflow-hidden" style={{ fontFamily: "'Heebo', sans-serif" }} dir="rtl">
+    <div className="fixed inset-0 overflow-hidden" style={{ fontFamily: "'Heebo', sans-serif", cursor: phase === "playing" ? "none" : "auto" }} dir="rtl">
       {/* Background */}
       <div className="absolute inset-0" style={{
         backgroundImage: "url('/summerfair/beach.gif')",
@@ -861,7 +892,7 @@ export default function SummerFairGame() {
       <img ref={fisherRef} src="/summerfair/thefisher.png" draggable={false} alt=""
         className="absolute z-20 select-none"
         style={{ width: "clamp(120px,20vw,340px)", maxHeight: "28vh", objectFit: "contain",
-          cursor: "grab", touchAction: "none",
+          pointerEvents: "none", touchAction: "none",
           filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.4))",
           display: phase === "finale" ? "none" : "block" }} />
 
@@ -873,25 +904,27 @@ export default function SummerFairGame() {
             initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
             transition={{ type: "spring", damping: 20 }}
           >
-            {currentStore.logo ? (
-              <motion.img src={currentStore.logo} alt="" className="block mb-2 object-contain rounded-xl"
-                style={{ width: "clamp(90px,16vw,200px)", height: "clamp(90px,16vw,200px)", filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.5))" }}
-                animate={{ y: [0, -6, 0] }} transition={{ duration: 2, repeat: Infinity }} />
-            ) : (
-              <motion.div className="mb-2 rounded-xl flex items-center justify-center text-white/50 text-xs border border-white/20"
-                style={{ width: "clamp(90px,16vw,200px)", height: "clamp(90px,16vw,200px)", background: "rgba(255,255,255,0.08)" }}
-                animate={{ y: [0, -6, 0] }} transition={{ duration: 2, repeat: Infinity }}>
-                חסר לוגו
-              </motion.div>
-            )}
-            <span className="block font-black leading-tight mb-1 w-full" style={{
-              fontSize: "clamp(22px,5vw,56px)",
-              color: "#fff",
-              textShadow: `0 0 28px ${currentStore.color}, 0 0 12px ${currentStore.color}99, 0 2px 10px rgba(0,0,0,0.85)`,
-            }}>{currentStore.name}</span>
-            <span className="block font-bold text-white w-full" style={{ fontSize: "clamp(14px,3vw,28px)", textShadow: "0 2px 16px rgba(0,0,0,0.9)", maxWidth: 600 }}>
-              {currentStore.gift}
-            </span>
+            <div className={`flex flex-col items-center rounded-2xl ${currentStore.highlighted ? "summer-highlight px-5 py-4" : ""}`}>
+              {currentStore.logo ? (
+                <motion.img src={currentStore.logo} alt="" className="block mb-2 object-contain rounded-xl"
+                  style={{ width: "clamp(90px,16vw,200px)", height: "clamp(90px,16vw,200px)", filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.5))" }}
+                  animate={{ y: [0, -6, 0] }} transition={{ duration: 2, repeat: Infinity }} />
+              ) : (
+                <motion.div className="mb-2 rounded-xl flex items-center justify-center text-white/50 text-xs border border-white/20"
+                  style={{ width: "clamp(90px,16vw,200px)", height: "clamp(90px,16vw,200px)", background: "rgba(255,255,255,0.08)" }}
+                  animate={{ y: [0, -6, 0] }} transition={{ duration: 2, repeat: Infinity }}>
+                  חסר לוגו
+                </motion.div>
+              )}
+              <span className="block font-black leading-tight mb-1 w-full" style={{
+                fontSize: "clamp(22px,5vw,56px)",
+                color: "#fff",
+                textShadow: `0 0 28px ${currentStore.color}, 0 0 12px ${currentStore.color}99, 0 2px 10px rgba(0,0,0,0.85)`,
+              }}>{currentStore.name}</span>
+              <span className="block font-bold text-white w-full" style={{ fontSize: "clamp(14px,3vw,28px)", textShadow: "0 2px 16px rgba(0,0,0,0.9)", maxWidth: 600 }}>
+                {currentStore.gift}
+              </span>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -950,6 +983,32 @@ export default function SummerFairGame() {
         style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(6px)", border: "1px solid rgba(255,255,255,0.15)" }}>
         ← ירידים
       </button>
+
+      {/* ─ Sponsor badge ──────────────────────────────────────────── */}
+      <div
+        className="fixed bottom-4 left-4 z-50 flex flex-col items-center gap-2 px-4 py-3"
+        dir="rtl"
+        style={{
+          width: 200,
+          background: "linear-gradient(150deg, rgba(10,14,30,0.94) 0%, rgba(13,30,60,0.94) 100%)",
+          backdropFilter: "blur(10px)",
+          border: "1.5px solid rgba(255,215,0,0.35)",
+          borderRadius: 18,
+          boxShadow: "0 6px 28px rgba(0,0,0,0.55), 0 0 24px rgba(255,180,0,0.15)",
+        }}
+      >
+        <span style={{ fontSize: 12, fontWeight: 800, color: "#FFD700", letterSpacing: "0.1em", textTransform: "uppercase", textShadow: "0 0 12px rgba(255,200,0,0.5)" }}>
+          היריד בחסות
+        </span>
+        <div className="rounded-xl flex items-center justify-center" style={{ padding: "8px", width: "100%" }}>
+          <img
+            src="/summerfair/logos/special-transparent.png"
+            alt="Special"
+            draggable={false}
+            style={{ width: "100%", height: "auto", maxHeight: 140, objectFit: "contain" }}
+          />
+        </div>
+      </div>
 
       {/* Miss flash */}
       <AnimatePresence>
@@ -1056,51 +1115,6 @@ export default function SummerFairGame() {
         )}
       </AnimatePresence>
 
-      {/* ── Win Overlay ── */}
-      <AnimatePresence>
-        {phase === "win" && currentStore && (
-          <motion.div className="fixed inset-0 z-[200] flex items-center justify-center"
-            style={{ background: "rgba(0,10,40,0.6)", backdropFilter: "blur(4px)" }}
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <motion.div className="absolute rounded-full"
-              style={{ width: 720, height: 720, background: `repeating-conic-gradient(${currentStore.color}55 0deg 9deg, transparent 9deg 18deg)` }}
-              animate={{ rotate: 360 }} transition={{ duration: 10, repeat: Infinity, ease: "linear" }} />
-            {[1, 2, 3].map(n => (
-              <motion.div key={n} className="absolute rounded-full"
-                style={{ border: "2px solid rgba(255,220,50,0.22)", width: `clamp(${180 + n * 100}px, ${30 + n * 14}vw, ${320 + n * 200}px)`, height: `clamp(${180 + n * 100}px, ${30 + n * 14}vw, ${320 + n * 200}px)` }}
-                animate={{ opacity: [0.8, 0], scale: [0.8, 1.1] }} transition={{ duration: 2, repeat: Infinity, delay: (n - 1) * 0.65 }} />
-            ))}
-            <motion.div className="relative z-[2] rounded-[30px] text-center"
-              style={{ background: "linear-gradient(150deg, #0a1628 0%, #0d3b6e 50%, #1565c0 100%)", border: `2px solid ${currentStore.color}cc`,
-                padding: "clamp(28px,5vw,56px) clamp(36px,6.5vw,72px) clamp(24px,4vw,52px)", maxWidth: 520, width: "92vw",
-                boxShadow: "0 0 80px rgba(255,220,50,.35), 0 30px 80px rgba(0,0,0,.6)" }}
-              initial={{ scale: 0.2, y: 120, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }}
-              transition={{ type: "spring", damping: 22, stiffness: 300, delay: 0.1 }}>
-              {currentStore.logo ? (
-                <motion.img src={currentStore.logo} alt={currentStore.name}
-                  style={{ width: 90, height: 90, objectFit: "contain", filter: "drop-shadow(0 4px 16px rgba(0,0,0,0.5))" }}
-                  className="mx-auto block mb-2 rounded-xl" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", delay: 0.3 }} />
-              ) : (
-                <motion.div className="mx-auto mb-2 rounded-xl flex items-center justify-center text-white/40 text-xs border border-white/20"
-                  style={{ width: 90, height: 90, background: "rgba(255,255,255,0.06)" }}
-                  initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", delay: 0.3 }}>
-                  חסר לוגו
-                </motion.div>
-              )}
-              <div className="text-white/55 uppercase tracking-widest mb-1" style={{ fontSize: "clamp(11px,1.8vw,18px)", letterSpacing: 3 }}>תפסת מתנה מ</div>
-              <div className="font-black leading-tight mb-4" style={{ fontSize: "clamp(32px,5.8vw,56px)", background: "linear-gradient(135deg,#FFD700,#FFA500,#FFD700)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", filter: "drop-shadow(0 0 20px rgba(255,200,0,.6))" }}>
-                {currentStore.name}
-              </div>
-              <div className="h-0.5 w-[140px] mx-auto mb-4" style={{ background: "linear-gradient(90deg,transparent,rgba(255,215,0,.8),transparent)" }} />
-              <div className="text-white/50 mb-2 uppercase tracking-widest" style={{ fontSize: "clamp(12px,2vw,18px)" }}>המתנה שלך</div>
-              <div className="text-white font-bold" style={{ fontSize: "clamp(20px,3.5vw,38px)" }}>
-                {currentStore.gift === MISSING_GIFT ? <span className="text-yellow-400/60 text-lg">חסר תיאור מתנה</span> : currentStore.gift}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* ── Bomb Overlay ── */}
       <AnimatePresence>
         {phase === "bomb" && currentBomb && (
@@ -1147,6 +1161,15 @@ export default function SummerFairGame() {
         @keyframes shimmer { from { background-position: 200% center; } to { background-position: -200% center; } }
         @keyframes urgencyPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
         @keyframes waveDrift { from { transform: translateX(-15px); } to { transform: translateX(15px); } }
+        @keyframes summerRedBlink {
+          0%, 100% { box-shadow: 0 8px 24px rgba(0,0,0,.45), 0 0 0 0 rgba(220,38,38,0); border-color: rgba(255,255,255,0.25); }
+          50% { box-shadow: 0 8px 24px rgba(0,0,0,.45), 0 0 32px 10px rgba(220,38,38,.85); border-color: #dc2626; }
+        }
+        .summer-highlight {
+          border: 3px solid rgba(255,255,255,0.25);
+          background: transparent;
+          animation: summerRedBlink 1.2s ease-in-out infinite;
+        }
       `}</style>
     </div>
   );

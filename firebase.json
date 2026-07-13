@@ -58,6 +58,10 @@
                                          "function":  "saveFinale"
                                      },
                                      {
+                                         "source":  "/api/summer-thank-you",
+                                         "function":  "sendSummerThankYou"
+                                     },
+                                     {
                                          "source":  "**",
                                          "destination":  "/index.html"
                                      }

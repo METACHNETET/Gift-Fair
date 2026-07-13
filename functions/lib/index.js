@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.saveFinale = exports.saveLead = exports.getShops = void 0;
+exports.saveFinale = exports.sendSummerThankYou = exports.saveLead = exports.getShops = void 0;
 const admin = require("firebase-admin");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
@@ -74,6 +74,44 @@ async function sendThankYouEmail({ name, email, giftName, businessName }) {
     const result = await response.json().catch(() => null);
     console.log("[mail] Thank-you email sent:", (_a = result === null || result === void 0 ? void 0 : result.id) !== null && _a !== void 0 ? _a : email);
 }
+async function sendSummerThankYouEmail({ email }) {
+    var _a;
+    if (!RESEND_API_KEY) {
+        console.warn("[mail] RESEND_API_KEY is not configured; skipping summer thank-you email.");
+        return;
+    }
+    const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${RESEND_API_KEY}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            from: MAIL_FROM,
+            to: [email],
+            subject: "🌊 תודה שהשתתפת ביריד חופש!",
+            html: `
+        <div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.7;color:#0c2233;background:#eaf6fb;max-width:520px;margin:0 auto;border-radius:20px;overflow:hidden;border:1px solid #bfe3ef">
+          <div style="background:linear-gradient(135deg,#0891b2,#0369a1,#0c4a6e);padding:34px 28px 26px;text-align:center">
+            <div style="font-size:46px;line-height:1;margin-bottom:6px">🏆</div>
+            <h1 style="margin:0;color:#ffffff;font-size:23px;font-weight:800">תודה שהשתתפת ביריד חופש</h1>
+          </div>
+          <div style="padding:26px 28px 30px">
+            <p style="margin:0 0 14px;font-size:16px">וואווו כמה מתנות דגת! צוות יריד החופש אורז לך את המתנות בתשומת לב.</p>
+            <p style="margin:0;font-size:17px;color:#0369a1;font-weight:700">הן בדרך :)</p>
+          </div>
+        </div>
+      `,
+            text: `תודה שהשתתפת ביריד חופש!\n\nוואווו כמה מתנות דגת! צוות יריד החופש אורז לך את המתנות בתשומת לב.\nהן בדרך :)`,
+        }),
+    });
+    if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Resend error ${response.status}: ${body}`);
+    }
+    const result = await response.json().catch(() => null);
+    console.log("[mail] Summer thank-you email sent:", (_a = result === null || result === void 0 ? void 0 : result.id) !== null && _a !== void 0 ? _a : email);
+}
 // GET /api/shops
 exports.getShops = (0, https_1.onRequest)((req, res) => {
     cors(req, res, async () => {
@@ -136,6 +174,28 @@ exports.saveLead = (0, https_1.onRequest)((req, res) => {
         }
         catch (e) {
             console.error("[saveLead] Firestore error:", e);
+            res.json({ ok: false, error: String(e) });
+        }
+    });
+});
+// POST /api/summer-thank-you  body: { name?, email }
+exports.sendSummerThankYou = (0, https_1.onRequest)((req, res) => {
+    cors(req, res, async () => {
+        if (req.method !== "POST") {
+            res.status(405).send("Method Not Allowed");
+            return;
+        }
+        const { name, email } = req.body;
+        if (!email) {
+            res.status(400).json({ error: "Missing email" });
+            return;
+        }
+        try {
+            await sendSummerThankYouEmail({ name: name !== null && name !== void 0 ? name : "", email });
+            res.json({ ok: true });
+        }
+        catch (e) {
+            console.error("[sendSummerThankYou] Email error:", e);
             res.json({ ok: false, error: String(e) });
         }
     });
