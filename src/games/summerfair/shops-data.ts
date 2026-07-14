@@ -45,6 +45,7 @@ export const STORES: SummerStore[] = [
   { id: 23, name: "לאה זינגר",                         gift: "5 מתכוני שבת מנצחים מבית מבורכת",                                               color: "#0284C7", logo: "/summerfair/logos/mevorehet.png", highlighted: true },
   { id: 24, name: "יעל גוטסמן",                        gift: "הקומיקס לבעלות עסקים! סדרת קומיקס קייצית עם תובנה עסקית.",                     color: "#DC2626", logo: "/summerfair/logos/יעל גוטסמן.png" },
   { id: 26, name: "חנות חלוקים",                       gift: "הגרלה ספיישל - חלוק לשבת במתנה בשווי 700 ₪",                                    color: "#EA580C", logo: "/summerfair/logos/חלוקים.png" },
+  { id: 27, name: "איטי ולס",                          gift: "חכה: איך לדוג קבוצה מלאה לקורס הבא שלך",                                       color: "#059669", logo: "/summerfair/logos/ivales.png", alsoInGiftFair: true },
 ];
 
 export const BOMBS: SummerBomb[] = [
