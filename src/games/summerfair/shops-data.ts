@@ -43,7 +43,7 @@ export const STORES: SummerStore[] = [
   { id: 25, name: "רחלי שפינגלט",                      gift: "פייט בוט שעוזר לך להחליט איפה לפרסם – כל אנשי הקשר והפלטפורמות בפרינט ובדיגיטל", color: "#0F4C81", logo: "/summerfair/logos/רחלי שפינגלט.png" },
   { id: 22, name: "תהילה אדלר - אומנות ועיצוב קירות",  gift: "אתגר הבינה האנושית – האם העין שלך תזהה את הזיוף? מי שמזהה נכון נכנסת להגרלה על קיר אומנותי", color: "#15803D", logo: "/summerfair/logos/תהילה אדלר.jpg" },
   { id: 23, name: "לאה זינגר",                         gift: "5 מתכוני שבת מנצחים מבית מבורכת",                                               color: "#0284C7", logo: "/summerfair/logos/mevorehet.png", highlighted: true },
-  { id: 24, name: "יעל גוטסמן",                        gift: "פרופיל אישי לבעלת עסק עם שליחות — ב־5 שאלות מפתיעות שידייק ויקדם את העסק שלך", color: "#DC2626", logo: "/summerfair/logos/יעל גוטסמן.png" },
+  { id: 24, name: "יעל גוטסמן",                        gift: "הקומיקס לבעלות עסקים! סדרת קומיקס קייצית עם תובנה עסקית.",                     color: "#DC2626", logo: "/summerfair/logos/יעל גוטסמן.png" },
   { id: 26, name: "חנות חלוקים",                       gift: "הגרלה ספיישל - חלוק לשבת במתנה בשווי 700 ₪",                                    color: "#EA580C", logo: "/summerfair/logos/חלוקים.png" },
 ];
 

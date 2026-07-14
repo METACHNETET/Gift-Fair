@@ -2373,6 +2373,46 @@ function BusinessDashboard({ onBack }: { onBack: () => void }) {
     URL.revokeObjectURL(url);
   };
 
+  const lastSevenDays = useMemo(() => {
+    const days: { key: string; label: string; start: number; end: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - i);
+      const start = d.getTime();
+      days.push({
+        key: d.toISOString().slice(0, 10),
+        label: d.toLocaleDateString("he-IL", { weekday: "short", day: "2-digit", month: "2-digit" }),
+        start,
+        end: start + 24 * 60 * 60 * 1000,
+      });
+    }
+    return days;
+  }, []);
+
+  const countLeadsForDay = (day: { start: number; end: number }) =>
+    adminUniqueLeads.filter(l => {
+      const t = l.claimedAt?.seconds ? l.claimedAt.seconds * 1000 : null;
+      return t !== null && t >= day.start && t < day.end;
+    }).length;
+
+  const handleDownloadDay = (day: { key: string; start: number; end: number }) => {
+    const rows = adminUniqueLeads.filter(l => {
+      const t = l.claimedAt?.seconds ? l.claimedAt.seconds * 1000 : null;
+      return t !== null && t >= day.start && t < day.end;
+    });
+    const csv = "﻿" + "שם,אימייל,מקור,מתנות,תאריך\n" + rows.map(r =>
+      `"${r.name || ""}","${r.email}","${r.source === "finale" ? "השלימה" : r.source === "early" ? "הרשמה מוקדמת" : "חנות"}","${r.shopIds.length}","${r.claimedAt ? new Date(r.claimedAt.seconds * 1000).toLocaleString("he-IL") : ""}"`
+    ).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `leads-${day.key}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleCreateShop = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user) return;
@@ -2523,6 +2563,26 @@ function BusinessDashboard({ onBack }: { onBack: () => void }) {
                     <Download className="w-4 h-4 ml-2" />
                     ייצוא CSV מלא
                   </Button>
+                </div>
+                <div className="p-6 border-b">
+                  <p className="text-sm font-semibold text-stone-500 mb-3">הורדה לפי יום (7 הימים האחרונים)</p>
+                  <div className="flex flex-wrap gap-2">
+                    {lastSevenDays.map(day => {
+                      const count = countLeadsForDay(day);
+                      return (
+                        <Button
+                          key={day.key}
+                          size="sm"
+                          variant="outline"
+                          disabled={adminLoading || count === 0}
+                          onClick={() => handleDownloadDay(day)}
+                        >
+                          <Download className="w-4 h-4 ml-2" />
+                          {day.label} ({count})
+                        </Button>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-right">
