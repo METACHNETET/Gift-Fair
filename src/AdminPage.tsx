@@ -312,31 +312,6 @@ export default function AdminPage() {
     return Array.from(byEmail.values());
   }, [sfFinaleLeads, sfEarlySignups]);
 
-  // ─── Daily breakdown (last 7 days) ────────────────────────────────────────────
-  const last7Days = useMemo(() => {
-    const days: { key: string; date: Date }[] = [];
-    const now = new Date();
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-      days.push({ key: d.toDateString(), date: d });
-    }
-    return days;
-  }, []);
-
-  const buildDailyGroups = (leads: AllLead[]) => {
-    const map = new Map<string, AllLead[]>();
-    leads.forEach(l => {
-      if (!l.claimedAt) return;
-      const key = new Date(l.claimedAt.seconds * 1000).toDateString();
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(l);
-    });
-    return last7Days.map(d => ({ ...d, leads: map.get(d.key) ?? [] }));
-  };
-
-  const gfDailyGroups = useMemo(() => buildDailyGroups(gfAllLeads), [gfAllLeads, last7Days]);
-  const sfDailyGroups = useMemo(() => buildDailyGroups(sfAllLeads), [sfAllLeads, last7Days]);
-
   // ─── Shared CSV util ──────────────────────────────────────────────────────────
   const downloadCsv = (rows: Record<string, string>[], filename: string) => {
     if (rows.length === 0) return;
@@ -403,7 +378,6 @@ export default function AdminPage() {
   const curShops = isSummer ? sfShops : shops;
   const curAllLeads = isSummer ? sfAllLeads : gfAllLeads;
   const curRefStats = isSummer ? sfRefStats : refStats;
-  const curDailyGroups = isSummer ? sfDailyGroups : gfDailyGroups;
   const totalLeads = curShops.reduce((s, sh) => s + sh.leadCount, 0);
 
   // ─── Admin dashboard ──────────────────────────────────────────────────────────
@@ -481,31 +455,6 @@ export default function AdminPage() {
             <Download className="w-4 h-4 ml-2" />
             הורד את כל הלידים (CSV)
           </Button>
-        </div>
-
-        {/* Daily downloads - last 7 days */}
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="text-sm font-semibold text-gray-600 mb-3">הורדה יומית — 7 הימים האחרונים</div>
-          <div className="flex flex-wrap gap-2">
-            {curDailyGroups.map(g => (
-              <button
-                key={g.key}
-                disabled={g.leads.length === 0}
-                onClick={() => downloadAllLeads(
-                  g.leads,
-                  `לידים-${g.date.toLocaleDateString("he-IL").replace(/\./g, "-")}-${isSummer ? "summerfair" : "giftfair"}.csv`
-                )}
-                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
-                  g.leads.length > 0
-                    ? "border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 cursor-pointer"
-                    : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
-                }`}
-              >
-                <span>{g.date.toLocaleDateString("he-IL", { weekday: "short", day: "2-digit", month: "2-digit" })}</span>
-                <span className="flex items-center gap-1"><Download className="w-3 h-3" />{g.leads.length}</span>
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Tabs */}
