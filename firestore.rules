@@ -52,7 +52,15 @@ service cloud.firestore {
         allow read: if true;
         allow create: if true;
       }
-      
+
+      // Tracks which leads were already exported per shop (admin dashboard "download new only")
+      match /exported_leads/{shopId} {
+        function isAdmin() {
+          return isSignedIn() && request.auth.token.email in ['d0527181611@gmail.com', 'dvoraz@schoolframe.net'];
+        }
+        allow read, write: if isAdmin();
+      }
+
       // Shops in a fair
       match /shops/{shopId} {
         function isValidShop(data) {

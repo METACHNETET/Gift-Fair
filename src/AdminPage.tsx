@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useAuth } from "./lib/AuthContext";
 import { auth, db } from "./lib/firebase";
 import { signInWithPopup, GoogleAuthProvider, signOut, signInWithEmailAndPassword } from "firebase/auth";
-import { collection, getDocsFromServer, query, orderBy } from "firebase/firestore";
+import { collection, getDocsFromServer, query, orderBy, doc, setDoc, arrayUnion } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Shop } from "./types";
 import GENERATED_SHOPS from "./shops-data";
@@ -66,12 +66,14 @@ export default function AdminPage() {
   const [shopInterests, setShopInterests] = useState<ShopInterest[]>([]);
   const [earlySignups, setEarlySignups] = useState<EarlySignup[]>([]);
   const [refStats, setRefStats] = useState<RefStat[]>([]);
+  const [exportedByShop, setExportedByShop] = useState<Record<string, Set<string>>>({});
 
   // ── SummerFair state ──
   const [sfShops, setSfShops] = useState<SummerShopWithLeads[]>([]);
   const [sfFinaleLeads, setSfFinaleLeads] = useState<FinaleLead[]>([]);
   const [sfEarlySignups, setSfEarlySignups] = useState<EarlySignup[]>([]);
   const [sfRefStats, setSfRefStats] = useState<RefStat[]>([]);
+  const [sfExportedByShop, setSfExportedByShop] = useState<Record<string, Set<string>>>({});
 
   // ── Shared UI state ──
   const [expandedShopId, setExpandedShopId] = useState<string | null>(null);
@@ -88,11 +90,18 @@ export default function AdminPage() {
 
   // ─── Fetch GiftFair ──────────────────────────────────────────────────────────
   const fetchGiftFair = useCallback(async () => {
-    const [finaleSnap, interestsSnap, earlySnap] = await Promise.all([
+    const [finaleSnap, interestsSnap, earlySnap, exportedSnap] = await Promise.all([
       getDocsFromServer(query(collection(db, "fairs", "main_fair", "finale_leads"), orderBy("claimedAt", "desc"))),
       getDocsFromServer(collection(db, "fairs", "main_fair", "shop_interests")),
       getDocsFromServer(collection(db, "fairs", "main_fair", "early_signups")),
+      getDocsFromServer(collection(db, "fairs", "main_fair", "exported_leads")),
     ]);
+
+    const exportedMap: Record<string, Set<string>> = {};
+    exportedSnap.docs.forEach(d => {
+      exportedMap[d.id] = new Set((d.data().emails as string[] | undefined) ?? []);
+    });
+    setExportedByShop(exportedMap);
 
     const shopEmailSets: Record<string, Set<string>> = {};
     const shopAnonCounts: Record<string, number> = {};
@@ -150,10 +159,17 @@ export default function AdminPage() {
 
   // ─── Fetch SummerFair ────────────────────────────────────────────────────────
   const fetchSummerFair = useCallback(async () => {
-    const [finaleSnap, earlySnap] = await Promise.all([
+    const [finaleSnap, earlySnap, exportedSnap] = await Promise.all([
       getDocsFromServer(collection(db, "fairs", "summerfair", "finale_leads")),
       getDocsFromServer(collection(db, "fairs", "summerfair", "early_signups")),
+      getDocsFromServer(collection(db, "fairs", "summerfair", "exported_leads")),
     ]);
+
+    const sfExportedMap: Record<string, Set<string>> = {};
+    exportedSnap.docs.forEach(d => {
+      sfExportedMap[d.id] = new Set((d.data().emails as string[] | undefined) ?? []);
+    });
+    setSfExportedByShop(sfExportedMap);
 
     const shopEmailSets: Record<string, Set<string>> = {};
     finaleSnap.docs.forEach(d => {
@@ -262,6 +278,43 @@ export default function AdminPage() {
     downloadCsv(rows, `leads-${shop.businessName ?? shop.id}.csv`);
   };
 
+  const getNewLeadsForShop = (shop: ShopWithLeads) => {
+    const exported = exportedByShop[shop.id] ?? new Set<string>();
+    const seenEmails = new Set<string>();
+    type CsvRow = { name: string; email: string; date: string; source: string };
+    const rows: CsvRow[] = [];
+    finaleLeads.filter(l => l.shopIds.includes(shop.id)).forEach(l => {
+      const key = l.email?.toLowerCase();
+      if (!key || seenEmails.has(key)) return;
+      seenEmails.add(key);
+      if (exported.has(key)) return;
+      const date = l.claimedAt ? new Date(l.claimedAt.seconds * 1000).toLocaleDateString("he-IL") : "";
+      rows.push({ name: l.name, email: l.email, date, source: "הגמר" });
+    });
+    shopInterests.filter(l => l.shopId === shop.id && l.email).forEach(l => {
+      const key = l.email!.toLowerCase();
+      if (seenEmails.has(key)) return;
+      seenEmails.add(key);
+      if (exported.has(key)) return;
+      const date = l.collectedAt ? new Date(l.collectedAt.seconds * 1000).toLocaleDateString("he-IL") : "";
+      rows.push({ name: "", email: l.email!, date, source: "עצר" });
+    });
+    return rows;
+  };
+
+  const handleDownloadNewShopLeads = async (shop: ShopWithLeads) => {
+    const rows = getNewLeadsForShop(shop);
+    if (rows.length === 0) return;
+    downloadCsv(rows, `leads-חדשים-${shop.businessName ?? shop.id}.csv`);
+    const emails = rows.map(r => r.email.toLowerCase());
+    await setDoc(doc(db, "fairs", "main_fair", "exported_leads", shop.id), { emails: arrayUnion(...emails) }, { merge: true });
+    setExportedByShop(prev => {
+      const next = new Set(prev[shop.id] ?? []);
+      emails.forEach(e => next.add(e));
+      return { ...prev, [shop.id]: next };
+    });
+  };
+
   const gfAllLeads = useMemo((): AllLead[] => {
     const byEmail = new Map<string, AllLead>();
     finaleLeads.forEach(l => {
@@ -295,6 +348,35 @@ export default function AdminPage() {
       rows.push({ name: l.name, email: l.email, date });
     });
     downloadCsv(rows, `leads-${shopName}.csv`);
+  };
+
+  const getNewSfLeadsForShop = (shopId: string) => {
+    const exported = sfExportedByShop[shopId] ?? new Set<string>();
+    const seenEmails = new Set<string>();
+    type CsvRow = { name: string; email: string; date: string };
+    const rows: CsvRow[] = [];
+    sfFinaleLeads.filter(l => l.shopIds.includes(shopId)).forEach(l => {
+      const key = l.email?.toLowerCase();
+      if (!key || seenEmails.has(key)) return;
+      seenEmails.add(key);
+      if (exported.has(key)) return;
+      const date = l.claimedAt ? new Date(l.claimedAt.seconds * 1000).toLocaleDateString("he-IL") : "";
+      rows.push({ name: l.name, email: l.email, date });
+    });
+    return rows;
+  };
+
+  const handleDownloadNewSfShopLeads = async (shopId: string, shopName: string) => {
+    const rows = getNewSfLeadsForShop(shopId);
+    if (rows.length === 0) return;
+    downloadCsv(rows, `leads-חדשים-${shopName}.csv`);
+    const emails = rows.map(r => r.email.toLowerCase());
+    await setDoc(doc(db, "fairs", "summerfair", "exported_leads", shopId), { emails: arrayUnion(...emails) }, { merge: true });
+    setSfExportedByShop(prev => {
+      const next = new Set(prev[shopId] ?? []);
+      emails.forEach(e => next.add(e));
+      return { ...prev, [shopId]: next };
+    });
   };
 
   const sfAllLeads = useMemo((): AllLead[] => {
@@ -489,6 +571,7 @@ export default function AdminPage() {
                   {isSummer ? (
                     sfShops.map((shop, i) => {
                       const isExpanded = expandedShopId === shop.id;
+                      const newCount = getNewSfLeadsForShop(shop.id).length;
                       const displayLeads = sfFinaleLeads
                         .filter(l => l.shopIds.includes(shop.id))
                         .reduce<{ name: string; email: string }[]>((acc, l) => {
@@ -514,7 +597,18 @@ export default function AdminPage() {
                               <div className="flex items-center justify-center gap-1">
                                 {shop.leadCount > 0 && (
                                   <>
-                                    <button onClick={() => downloadSfShopLeads(shop.id, shop.name)} title="הורד CSV"
+                                    <button onClick={() => handleDownloadNewSfShopLeads(shop.id, shop.name)}
+                                      disabled={newCount === 0}
+                                      title={`הורד לידים חדשים (${newCount})`}
+                                      className={`relative p-1.5 rounded hover:bg-gray-100 transition-colors ${newCount > 0 ? "text-sky-600 hover:text-sky-700" : "text-gray-300 cursor-not-allowed"}`}>
+                                      <Download className="w-4 h-4" />
+                                      {newCount > 0 && (
+                                        <span className="absolute -top-1 -right-1 bg-sky-500 text-white text-[10px] leading-none rounded-full w-4 h-4 flex items-center justify-center font-bold">
+                                          {newCount > 9 ? "9+" : newCount}
+                                        </span>
+                                      )}
+                                    </button>
+                                    <button onClick={() => downloadSfShopLeads(shop.id, shop.name)} title="הורד את כל הלידים (CSV)"
                                       className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
                                       <Download className="w-4 h-4" />
                                     </button>
@@ -549,6 +643,7 @@ export default function AdminPage() {
                   ) : (
                     shops.map((shop, i) => {
                       const isExpanded = expandedShopId === shop.id;
+                      const newCount = getNewLeadsForShop(shop).length;
                       type DisplayLead = { name: string; email: string; source: "finale" | "interest" };
                       const seenEmails = new Set<string>();
                       const displayLeads: DisplayLead[] = [];
@@ -582,7 +677,18 @@ export default function AdminPage() {
                               <div className="flex items-center justify-center gap-1">
                                 {shop.leadCount > 0 && (
                                   <>
-                                    <button onClick={() => downloadShopLeads(shop)} title="הורד CSV"
+                                    <button onClick={() => handleDownloadNewShopLeads(shop)}
+                                      disabled={newCount === 0}
+                                      title={`הורד לידים חדשים (${newCount})`}
+                                      className={`relative p-1.5 rounded hover:bg-gray-100 transition-colors ${newCount > 0 ? "text-green-600 hover:text-green-700" : "text-gray-300 cursor-not-allowed"}`}>
+                                      <Download className="w-4 h-4" />
+                                      {newCount > 0 && (
+                                        <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[10px] leading-none rounded-full w-4 h-4 flex items-center justify-center font-bold">
+                                          {newCount > 9 ? "9+" : newCount}
+                                        </span>
+                                      )}
+                                    </button>
+                                    <button onClick={() => downloadShopLeads(shop)} title="הורד את כל הלידים (CSV)"
                                       className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
                                       <Download className="w-4 h-4" />
                                     </button>
