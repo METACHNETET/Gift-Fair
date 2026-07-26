@@ -11,6 +11,7 @@ import { RefreshCw, LogOut, Download, ChevronDown, ChevronUp } from "lucide-reac
 
 // ─── Admin config ─────────────────────────────────────────────────────────────
 const ADMIN_EMAILS = ["d0527181611@gmail.com", "dvoraz@schoolframe.net"];
+const ALL_LEADS_EXPORT_KEY = "__all__";
 
 interface ShopWithLeads extends Shop {
   leadCount: number;
@@ -462,6 +463,25 @@ export default function AdminPage() {
   const curRefStats = isSummer ? sfRefStats : refStats;
   const totalLeads = curShops.reduce((s, sh) => s + sh.leadCount, 0);
 
+  // ─── "New leads" export for the top-level all-leads button (additive; reuses exported_leads collection) ──
+  const curExportedByShop = isSummer ? sfExportedByShop : exportedByShop;
+  const exportedAllLeadsEmails = curExportedByShop[ALL_LEADS_EXPORT_KEY] ?? new Set<string>();
+  const newAllLeadsList = curAllLeads.filter(l => !exportedAllLeadsEmails.has(l.email.toLowerCase().trim()));
+
+  const handleDownloadNewAllLeads = async () => {
+    if (newAllLeadsList.length === 0) return;
+    downloadAllLeads(newAllLeadsList, isSummer ? "לידים-חדשים-summerfair.csv" : "לידים-חדשים-giftfair.csv");
+    const emails = newAllLeadsList.map(l => l.email.toLowerCase().trim());
+    const fairId = isSummer ? "summerfair" : "main_fair";
+    await setDoc(doc(db, "fairs", fairId, "exported_leads", ALL_LEADS_EXPORT_KEY), { emails: arrayUnion(...emails) }, { merge: true });
+    const updateMap = isSummer ? setSfExportedByShop : setExportedByShop;
+    updateMap(prev => {
+      const next = new Set(prev[ALL_LEADS_EXPORT_KEY] ?? []);
+      emails.forEach(e => next.add(e));
+      return { ...prev, [ALL_LEADS_EXPORT_KEY]: next };
+    });
+  };
+
   // ─── Admin dashboard ──────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen p-6 bg-gray-50" dir="rtl">
@@ -532,11 +552,17 @@ export default function AdminPage() {
             <div className="text-3xl font-bold text-purple-600">{curAllLeads.length}</div>
             <div className="text-sm text-gray-500 mt-1">לידים ייחודיים (כפילויות הוסרו)</div>
           </div>
-          <Button onClick={() => downloadAllLeads(curAllLeads, isSummer ? "כל-הלידים-summerfair.csv" : "כל-הלידים-giftfair.csv")}
-            disabled={curAllLeads.length === 0}>
-            <Download className="w-4 h-4 ml-2" />
-            הורד את כל הלידים (CSV)
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleDownloadNewAllLeads} disabled={newAllLeadsList.length === 0}>
+              <Download className="w-4 h-4 ml-2" />
+              הורד לידים חדשים{newAllLeadsList.length > 0 ? ` (${newAllLeadsList.length})` : ""}
+            </Button>
+            <Button onClick={() => downloadAllLeads(curAllLeads, isSummer ? "כל-הלידים-summerfair.csv" : "כל-הלידים-giftfair.csv")}
+              disabled={curAllLeads.length === 0}>
+              <Download className="w-4 h-4 ml-2" />
+              הורד את כל הלידים (CSV)
+            </Button>
+          </div>
         </div>
 
         {/* Tabs */}
