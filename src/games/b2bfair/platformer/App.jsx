@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
 import './App.css'
 import {
   GRAVITY,
@@ -16,7 +17,6 @@ import {
   WORLD_HEIGHT,
   WORLD_WIDTH,
   ROUND_SECONDS,
-  KEYS_REQUIRED_FOR_FREE_ENTRY,
   TOTAL_KEYS,
   BACKGROUND_IMAGE_URL,
   IMAGE_RENDER_WIDTH,
@@ -24,9 +24,61 @@ import {
   COURSES,
   LEVEL,
   FLOORS_VISIBLE_PER_SCREEN,
+  LADDER_GRAB_MARGIN,
+  CAMERA_EDGE_MARGIN,
 } from './constants'
 import robotSpriteSheet from './assets/robot-sprite-transparent.png'
 import robotClimbSpriteSheet from './assets/robot-sprite-climb-no-ladder.png'
+
+// --- מסך פתיחה: רצף בועות דיבור עם אותיות נופלות, ואז טופס מייל ---
+const INTRO_STEPS = [
+  { lines: ['החורף הזה את עושה קפיצה עיסקית'], holdMs: 3200 },
+  {
+    lines: [
+      'אספנו לך קורסים ומתנות שיקפיצו לך את העסק ואת הרווחים בע"ה',
+      'נראה כמה תצליחי לקחת....',
+    ],
+    holdMs: 5200,
+  },
+  {
+    lines: [
+      'תיכנסו איתי לבית הספר ותתחילו ללכת',
+      'כל מתנה שתצליחו להקפיץ עליה עם הרובוט — שלכם',
+    ],
+    holdMs: 5200,
+  },
+  {
+    lines: ['לפני שמתחילים', 'רק לאיפה לשלוח לכם את המתנות שתאספו?'],
+  },
+]
+
+// אותיות הטקסט נופלות פנימה אחת אחרי השנייה (עיכוב מצטבר לפי אינדקס התו).
+// כל מילה עטופה בתג נפרד עם white-space:nowrap כדי שהגלישה לשורה הבאה
+// תתבצע בין מילים, ולא תשבור מילה באמצע בין שתי אותיות.
+function FallingLines({ lines }) {
+  let index = 0
+  function renderChar(ch) {
+    const delay = index * 0.032
+    index += 1
+    return (
+      <span key={index} className="intro-bubble__char" style={{ animationDelay: `${delay}s` }}>
+        {ch}
+      </span>
+    )
+  }
+  return lines.map((line, lineIndex) => (
+    <p className="intro-bubble__line" key={lineIndex}>
+      {line.split(' ').flatMap((word, wordIndex, words) => {
+        const wordSpan = (
+          <span className="intro-bubble__word" key={`w${wordIndex}`}>
+            {[...word].map(renderChar)}
+          </span>
+        )
+        return wordIndex < words.length - 1 ? [wordSpan, ' '] : [wordSpan]
+      })}
+    </p>
+  ))
+}
 
 function playLadderNotes(audioContext, notes, startAt, spacing = 0.075) {
   notes.forEach((frequency, index) => {
@@ -244,6 +296,9 @@ function createEnemies() {
 // 'start' -> 'countdown' -> 'playing' -> 'ended'
 function App() {
   const [phase, setPhase] = useState('start')
+  const [introStep, setIntroStep] = useState(0)
+  const [introEmail, setIntroEmail] = useState('')
+  const [introConsent, setIntroConsent] = useState(false)
   const [countdownValue, setCountdownValue] = useState(3)
   const [timeLeft, setTimeLeft] = useState(ROUND_SECONDS)
   const [collectedIds, setCollectedIds] = useState(() => new Set())
@@ -253,8 +308,6 @@ function App() {
 
   const viewportRef = useRef(null)
   const worldLayerRef = useRef(null)
-  const coordinateRulerRef = useRef(null)
-  const coordinateReadoutRef = useRef(null)
   const playerRef = useRef(null)
   const enemyElementsRef = useRef({})
   const hudRef = useRef(null)
@@ -367,7 +420,10 @@ function App() {
       cameraX = -(vw - WORLD_WIDTH) / 2
     } else {
       cameraX = g.x + PLAYER_WIDTH / 2 - vw / 2
-      cameraX = Math.max(0, Math.min(WORLD_WIDTH - vw, cameraX))
+      cameraX = Math.max(
+        -CAMERA_EDGE_MARGIN,
+        Math.min(WORLD_WIDTH - vw + CAMERA_EDGE_MARGIN, cameraX)
+      )
     }
     g.cameraX = cameraX
 
@@ -377,9 +433,6 @@ function App() {
 
     if (worldLayerRef.current) {
       worldLayerRef.current.style.transform = `scale(${zoom}) translate3d(${-cameraX}px, ${-cameraY}px, 0)`
-    }
-    if (coordinateRulerRef.current) {
-      coordinateRulerRef.current.style.transform = `translateY(${-cameraY}px)`
     }
     if (playerRef.current) {
       playerRef.current.style.transform = `translate3d(${g.x + PLAYER_WIDTH / 2 - 28}px, ${g.y - 64}px, 0) scaleX(${g.facing})`
@@ -404,6 +457,31 @@ function App() {
   useEffect(() => {
     if (phase !== 'countdown') return
     syncCameraToDOM()
+    // ודאו שאף תגית לוגו של מפתח קרוב לא נחתכת כבר במסגרת הפתיחה: אם המצלמה
+    // ההתחלתית חושפת רק חלק מתגית, מזיזים מעט את נקודת ההתחלה כך שתיכלל במלואה
+    const g = game.current
+    const KEY_WIDTH = 32
+    const LOGO_OVERFLOW = 8
+    // כמה סבבים — תיקון לכיוון אחד עלול לחשוף התנגשות חדשה בצד השני, אז
+    // חוזרים עד שמתכנסים (או שמוותרים אחרי כמה ניסיונות)
+    for (let pass = 0; pass < 2; pass++) {
+      const viewLeft = g.cameraX
+      const viewRight = g.cameraX + g.viewportWidth / g.zoom
+      let adjusted = false
+      for (const key of LEVEL.keys) {
+        const logoLeft = key.x - LOGO_OVERFLOW
+        const logoRight = key.x + KEY_WIDTH + LOGO_OVERFLOW
+        if (logoLeft < viewLeft && logoRight > viewLeft) {
+          g.x -= viewLeft - logoLeft
+          adjusted = true
+        } else if (logoRight > viewRight && logoLeft < viewRight) {
+          g.x += logoRight - viewRight
+          adjusted = true
+        }
+      }
+      syncCameraToDOM()
+      if (!adjusted) break
+    }
   }, [phase, syncCameraToDOM])
 
   // קונפטי קצר במקום המפתח — בלי לעצור את המשחק, כדי שיספיקו כמה שיותר
@@ -582,8 +660,8 @@ function App() {
       const playerFeetY = g.y + PLAYER_HEIGHT
       const ladder = LEVEL.ladders.find(
         (l) =>
-          playerCenterX > l.x &&
-          playerCenterX < l.x + l.width &&
+          playerCenterX > l.x - LADDER_GRAB_MARGIN &&
+          playerCenterX < l.x + l.width + LADDER_GRAB_MARGIN &&
           playerFeetY > l.topY - 4 &&
           playerFeetY < l.bottomY + 4
       )
@@ -599,6 +677,9 @@ function App() {
       } else {
         g.climbing = false
       }
+      // האם הדמות טיפסה על סולם בפריים הזה — משמש בהמשך כדי לדלג על בדיקת
+      // הנחיתה הרגילה בזמן טיפוס (אחרת ירידה מרצפה "נוחתת" עליה מיד ותוקעת)
+      const wasClimbing = g.climbing
 
       const audioContext = audioContextRef.current
       if (g.climbing && g.vy !== 0 && audioContext?.state === 'running') {
@@ -699,16 +780,27 @@ function App() {
       const wasJumping = g.jumping
       let nextY = g.y + g.vy * dt
 
+      let justLandedFromLadder = false
       if (g.climbing) {
         // אי אפשר לטפס מעבר לקצוות הסולם
-        nextY = Math.max(
-          ladder.topY - PLAYER_HEIGHT,
-          Math.min(ladder.bottomY - PLAYER_HEIGHT, nextY)
-        )
+        const minY = ladder.topY - PLAYER_HEIGHT
+        const maxY = ladder.bottomY - PLAYER_HEIGHT
+        nextY = Math.max(minY, Math.min(maxY, nextY))
+        // הגעה לקצה הסולם תוך כדי טיפוס בכיוון הזה — עומדים מיד על הקומה,
+        // בלי לחכות לעזיבת המקש (וגם לא "נוחתים" בטעות על הרצפה שמטפסים ממנה)
+        if ((nextY <= minY && g.vy < 0) || (nextY >= maxY && g.vy > 0)) {
+          g.climbing = false
+          g.vy = 0
+          g.onGround = true
+          g.groundKind = 'floor'
+          justLandedFromLadder = true
+        }
       }
 
-      g.onGround = false
-      g.groundKind = null
+      if (!justLandedFromLadder) {
+        g.onGround = false
+        g.groundKind = null
+      }
 
       // מכה בראש בתחתית קופסת מתנה בזמן עלייה
       if (g.vy < 0 && !g.climbing) {
@@ -739,23 +831,25 @@ function App() {
         ...GIFT_BOX_SOLIDS,
       ]
       let landing = null
-      for (const platform of landingSurfaces) {
-        if (platform.kind === 'shelf' && now < g.dropThroughUntil) continue
-        const withinX =
-          g.x + PLAYER_WIDTH > platform.x && g.x < platform.x + platform.width
-        if (!withinX) continue
+      if (!wasClimbing) {
+        for (const platform of landingSurfaces) {
+          if (platform.kind === 'shelf' && now < g.dropThroughUntil) continue
+          const withinX =
+            g.x + PLAYER_WIDTH > platform.x && g.x < platform.x + platform.width
+          if (!withinX) continue
 
-        const platformTop = platform.y
-        const playerBottomBefore = g.y + PLAYER_HEIGHT
-        const playerBottomAfter = nextY + PLAYER_HEIGHT
+          const platformTop = platform.y
+          const playerBottomBefore = g.y + PLAYER_HEIGHT
+          const playerBottomAfter = nextY + PLAYER_HEIGHT
 
-        if (
-          g.vy >= 0 &&
-          playerBottomBefore <= platformTop + 1 &&
-          playerBottomAfter >= platformTop &&
-          (!landing || platformTop < landing.y)
-        ) {
-          landing = platform
+          if (
+            g.vy >= 0 &&
+            playerBottomBefore <= platformTop + 1 &&
+            playerBottomAfter >= platformTop &&
+            (!landing || platformTop < landing.y)
+          ) {
+            landing = platform
+          }
         }
       }
       if (landing) {
@@ -907,6 +1001,20 @@ function App() {
     if (phase === 'playing') setTimeLeft(ROUND_SECONDS)
   }, [phase])
 
+  // --- רצף בועות הדיבור במסך הפתיחה: מתקדם לבד, ונעצר בשלב האחרון (טופס המייל) ---
+  useEffect(() => {
+    if (phase !== 'start') return
+    const holdMs = INTRO_STEPS[introStep]?.holdMs
+    if (!holdMs) return
+    const timer = window.setTimeout(() => setIntroStep((s) => s + 1), holdMs)
+    return () => window.clearTimeout(timer)
+  }, [phase, introStep])
+
+  function handleIntroSubmit(e) {
+    e.preventDefault()
+    startGame()
+  }
+
   // --- ספירה לאחור לפני התחלה ---
   useEffect(() => {
     if (phase !== 'countdown') return
@@ -1012,40 +1120,62 @@ function App() {
     })
   }
 
-  function handleViewportPointerMove(e) {
-    const viewportTop = viewportRef.current?.getBoundingClientRect().top ?? 0
-    const worldY = Math.round((e.clientY - viewportTop) / game.current.zoom + game.current.cameraY)
-    if (coordinateReadoutRef.current) {
-      coordinateReadoutRef.current.textContent = `Y: ${worldY} px`
-    }
-  }
-
-  function resetCoordinateReadout() {
-    if (coordinateReadoutRef.current) {
-      coordinateReadoutRef.current.textContent = 'Y: -- px'
-    }
-  }
-
   const keysCollectedCount = collectedIds.size
   const giftsClaimedCount = claimedGiftIds.size
   const collectedGifts = COURSES.filter((course) => collectedIds.has(course.id))
   const uncollectedGifts = COURSES.filter((course) => !collectedIds.has(course.id))
-  const unlockedFreeEntry = keysCollectedCount >= KEYS_REQUIRED_FOR_FREE_ENTRY
   const formattedTime = `${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, '0')}`
 
   return (
     <div className="app-root">
       {phase === 'start' && (
-        <div className="scene scene--center">
-          <h1>יריד הלידים — מתחם המשחק</h1>
-          <p className="subtitle">
-            אספו כמה שיותר מפתחות תוך דקה ועשרים ושלוש שניות —
-            <br />
-            כל מפתח פותח קורס של בעלת עסק במתחם הקורסים
-          </p>
-          <button className="primary-btn" onClick={startGame}>
-            התחילו לשחק
-          </button>
+        <div className="scene scene--center intro-scene">
+          <div className="intro-banner">ברוכים הבאים לבית הספר לעסקים</div>
+
+          <div className="intro-stage">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={introStep}
+                className="intro-bubble"
+                initial={{ opacity: 0, y: 16, scale: 0.94 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -18, scale: 0.96 }}
+                transition={{ duration: 0.35 }}
+              >
+                <FallingLines lines={INTRO_STEPS[introStep].lines} />
+              </motion.div>
+            </AnimatePresence>
+            <div className="intro-robot" style={{ backgroundImage: `url(${robotSpriteSheet})` }} />
+          </div>
+
+          {introStep === INTRO_STEPS.length - 1 && (
+            <form className="lead-form intro-lead-form" onSubmit={handleIntroSubmit}>
+              <input
+                type="email"
+                placeholder="אימייל"
+                value={introEmail}
+                onChange={(e) => setIntroEmail(e.target.value)}
+              />
+              <label className="consent-check">
+                <input
+                  type="checkbox"
+                  checked={introConsent}
+                  onChange={(e) => setIntroConsent(e.target.checked)}
+                />
+                <span>
+                  ברור שמאשר.ת קבלת דיוור מבעלות העסקים שאתפוס את המתנות שלהן, וממנהלות היריד ד.
+                  זילברשטיין ויעל פינגולד
+                </span>
+              </label>
+              <button
+                type="submit"
+                className="primary-btn"
+                disabled={introEmail.trim() !== '' && !introConsent}
+              >
+                התחילו לשחק
+              </button>
+            </form>
+          )}
         </div>
       )}
 
@@ -1056,12 +1186,7 @@ function App() {
       )}
 
       {(phase === 'playing' || phase === 'countdown') && (
-        <div
-          className="game-viewport"
-          ref={viewportRef}
-          onPointerMove={handleViewportPointerMove}
-          onPointerLeave={resetCoordinateReadout}
-        >
+        <div className="game-viewport" ref={viewportRef}>
           <div className="parallax-layer parallax-sky" />
           <div
             className="parallax-layer parallax-far"
@@ -1219,27 +1344,6 @@ function App() {
             </div>
           </div>
 
-          <div className="coordinate-ruler" aria-hidden="true">
-            <div className="coordinate-ruler__header">
-              <span>Y</span>
-              <span ref={coordinateReadoutRef}>Y: -- px</span>
-            </div>
-            <div className="coordinate-ruler__track" ref={coordinateRulerRef}>
-              {Array.from(
-                { length: Math.floor(WORLD_HEIGHT / 25) + 1 },
-                (_, index) => index * 25
-              ).map((y) => (
-                <div
-                  key={y}
-                  className={`coordinate-ruler__tick${y % 100 === 0 ? ' coordinate-ruler__tick--major' : ''}`}
-                  style={{ top: y }}
-                >
-                  {y % 100 === 0 && <span>{y}</span>}
-                </div>
-              ))}
-            </div>
-          </div>
-
           {phase === 'playing' && (
             <>
               <div className="hud" ref={hudRef}>
@@ -1377,16 +1481,9 @@ function App() {
             </div>
           </div>
 
-          {unlockedFreeEntry ? (
-            <p className="result-badge result-badge--success">
-              כל הכבוד! פתחתם כניסה חינם למתחם הקורסים 🎉
-            </p>
-          ) : (
-            <p className="result-badge">
-              עוד {KEYS_REQUIRED_FOR_FREE_ENTRY - keysCollectedCount} מתנות
-              היו נותנים כניסה חינם — אפשר גם לרכוש כרטיס למתחם הקורסים
-            </p>
-          )}
+          <p className="result-badge">
+            רק תגלי לנו לאיפה לשלוח לך את כל המתנות העיסקיות האילו....
+          </p>
 
           {!leadSubmitted ? (
             <form className="lead-form" onSubmit={handleLeadSubmit}>
@@ -1395,9 +1492,8 @@ function App() {
               <label className="consent-check">
                 <input type="checkbox" required />
                 <span>
-                  אני מאשר.ת קבלת דיוורים למייל מדבורי זילברשטיין ויעל פיינגולד מנהלות היריד ומבעלות
-                  העסקים שביריד (ברור שבמייל. אחרת איך ישלחו לי את כל הטוב הזה....:) אם ארצה אוכל לעשות
-                  הסרה 😉
+                  ברור שמאשר.ת קבלת דיוור מבעלות העסקים שאתפוס את המתנות שלהן, וממנהלות היריד ד.
+                  זילברשטיין ויעל פינגולד
                 </span>
               </label>
               <button type="submit" className="primary-btn" disabled={giftsClaimedCount === 0}>
@@ -1405,7 +1501,11 @@ function App() {
               </button>
             </form>
           ) : (
-            <p className="thank-you">תודה! שלחנו את הפרטים למייל שלכם.</p>
+            <p className="thank-you">
+              בעלי העסקים אורזים לכם את הקורסים והמתנות...
+              <br />
+              הם בדרך אליכם למייל...
+            </p>
           )}
 
           <button className="secondary-btn" onClick={startGame}>

@@ -6,6 +6,12 @@ export const GRAVITY = 2200 // px/s^2
 export const JUMP_VELOCITY = 960 // px/s
 export const MOVE_SPEED = 440 // px/s
 export const CLIMB_SPEED = 420 // px/s, מהירות טיפוס על סולם/מדרגות
+// שוליים נוספים משני צדי הסולם לצורך תפיסה (עלייה/ירידה) — כדי שלא תידרש
+// יישור פיקסל-מושלם עם הגרפיקה כדי לתפוס אותו
+export const LADDER_GRAB_MARGIN = 26
+// שוליים נוספים לגבולות המצלמה האופקיים כדי שתגית לוגו של מפתח שיושב קרוב
+// לקצה העולם (ימין/שמאל) לעולם לא תיחתך על ידי קצה המסך כשהמצלמה מגיעה לסוף
+export const CAMERA_EDGE_MARGIN = 70
 // --- תחושת קפיצה בסגנון מריו ---
 // עזיבת מקש הקפיצה בזמן עלייה חותכת את המהירות — לחיצה קצרה = קפיצה נמוכה
 export const JUMP_CUT_MULTIPLIER = 0.45
@@ -23,7 +29,6 @@ export const PLAYER_HEIGHT = 28
 
 // --- משחק ---
 export const ROUND_SECONDS = 83
-export const KEYS_REQUIRED_FOR_FREE_ENTRY = 4
 export const TOTAL_KEYS = Math.min(BUSINESSES.length, 30) // מפתח לכל עסק (יש 30 משבצות)
 
 // --- רקע: ספרייה רחבה עם שלוש קומות ---
