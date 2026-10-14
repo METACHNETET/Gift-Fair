@@ -23,6 +23,10 @@ import {
   IMAGE_RENDER_HEIGHT,
   COURSES,
   LEVEL,
+  BUBBLE_RADIUS,
+  BUBBLE_HOVER_HEIGHT,
+  BUBBLE_LIFETIME_MS,
+  BUBBLE_DRIFT,
 } from './constants'
 import robotSpriteSheet from './assets/robot-sprite-transparent.png'
 import robotClimbSpriteSheet from './assets/robot-sprite-climb-no-ladder.png'
@@ -180,7 +184,27 @@ const ENEMY_DEFINITIONS = [
 
 // קופסאות המתנה מוצקות מכל הכיוונים (גם אחרי שנפתחו, כמו במריו)
 const GIFT_BOX_SOLIDS = LEVEL.giftBoxes.map((box) => ({ ...box, kind: 'box' }))
-const KEYS_BY_ID = Object.fromEntries(LEVEL.keys.map((key) => [key.id, key]))
+// נקודת התחלה קבועה באמצע קומת הקרקע — מקום פנוי מקופסאות (לא תלוי ברוחב המסך)
+const PLAYER_SPAWN_X = Math.round(WORLD_WIDTH * 0.5 - PLAYER_WIDTH / 2)
+const BOXES_BY_ID = Object.fromEntries(LEVEL.giftBoxes.map((box) => [box.id, box]))
+// כמה רחוק הבועה בורחת הצידה מהקופסה, וכמה זמן אחרי היציאה אפשר לתפוס אותה
+const BUBBLE_ESCAPE_DISTANCE = 110
+const BUBBLE_ARM_MS = 350
+
+function initials(name) {
+  const words = name.trim().split(/\s+/)
+  return (words[0]?.[0] ?? '') + (words[1]?.[0] ?? '')
+}
+
+// לוגו העסק; בלי לוגו — עיגול צבעוני עם ראשי תיבות
+function GiftLogo({ gift }) {
+  if (gift.logoUrl) return <img src={gift.logoUrl} alt={gift.businessName} draggable="false" />
+  return (
+    <span className="gift-logo-fallback" style={{ background: gift.color }}>
+      {initials(gift.businessName)}
+    </span>
+  )
+}
 const DOORS_BY_ID = Object.fromEntries(LEVEL.doors.map((door) => [door.id, door]))
 
 function createElevatorState() {
@@ -234,8 +258,9 @@ function App() {
   const playerRef = useRef(null)
   const enemyElementsRef = useRef({})
   const hudRef = useRef(null)
-  const keyElementsRef = useRef({})
   const giftBoxElementsRef = useRef({})
+  const bubbleElementsRef = useRef({})
+  const giftPreviewTimerRef = useRef(null)
   const doorElementsRef = useRef({})
   const elevatorRef = useRef(null)
   const audioContextRef = useRef(null)
@@ -243,7 +268,7 @@ function App() {
 
   // מצב פיזיקלי חי — לא ב-state כדי לא לגרום ל-re-render כל פריים
   const game = useRef({
-    x: Math.max(0, Math.round(window.innerWidth / 2 - PLAYER_WIDTH / 2)),
+    x: PLAYER_SPAWN_X,
     y: GROUND_Y - PLAYER_HEIGHT,
     vx: 0,
     vy: 0,
@@ -259,7 +284,8 @@ function App() {
     downWasDown: false,
     downTapped: false,
     elevator: createElevatorState(),
-    openedBoxes: new Set(),
+    boxStates: new Map(), // closed (ברירת מחדל) | bubble | collected
+    bubbles: new Map(),
     facing: 1,
     cameraX: 0,
     cameraY: 0,
@@ -275,7 +301,6 @@ function App() {
     damageUntil: 0,
     rafId: null,
     lastTime: null,
-    nearbyKeyId: null,
   })
 
   // גובה/רוחב המסך בפועל — נשמר גם ב-state כדי שגודל שכבת העולם יתעדכן בזמן אמת
@@ -376,18 +401,44 @@ function App() {
     syncCameraToDOM()
   }, [phase, syncCameraToDOM])
 
-  const collectKey = useCallback((keyId, courseId) => {
-    if (game.current.collected.has(keyId)) return
-    game.current.collected.add(keyId)
+  // תפיסת בועה: המתנה נאספת, והכרטיס של העסק מוצג לרגע
+  const catchBubble = useCallback((box) => {
+    const g = game.current
+    g.bubbles.delete(box.id)
+    g.boxStates.set(box.id, 'collected')
     playKeyPickupSound(audioContextRef.current)
-    const el = keyElementsRef.current[keyId]
-    if (el) el.style.display = 'none'
-    setCollectedIds((prev) => new Set(prev).add(courseId))
-    setClaimedGiftIds((previous) => new Set(previous).add(courseId))
+    const boxElement = giftBoxElementsRef.current[box.id]
+    boxElement?.classList.remove('gift-box--open')
+    boxElement?.classList.add('gift-box--collected')
+    const bubbleElement = bubbleElementsRef.current[box.id]
+    if (bubbleElement) {
+      bubbleElement.classList.remove('gift-bubble--active', 'gift-bubble--fading')
+      bubbleElement.classList.add('gift-bubble--caught')
+      window.setTimeout(() => bubbleElement.classList.remove('gift-bubble--caught'), 450)
+    }
+    setCollectedIds((prev) => new Set(prev).add(box.gift.id))
+    setGiftPreview(box.gift)
+    window.clearTimeout(giftPreviewTimerRef.current)
+    giftPreviewTimerRef.current = window.setTimeout(() => setGiftPreview(null), 2200)
   }, [])
 
-  // מכה בקופסת מתנה מלמטה: הקופסה קופצת, מפתח עף ממנה למעלה ונאסף
-  const openGiftBox = useCallback((box) => {
+  // הבועה לא נתפסה בזמן — חוזרת לקופסה, ואפשר לפתוח שוב
+  const releaseBubble = useCallback((box) => {
+    const g = game.current
+    g.bubbles.delete(box.id)
+    g.boxStates.set(box.id, 'closed')
+    giftBoxElementsRef.current[box.id]?.classList.remove('gift-box--open')
+    const bubbleElement = bubbleElementsRef.current[box.id]
+    if (bubbleElement) {
+      bubbleElement.classList.remove('gift-bubble--active', 'gift-bubble--fading')
+      bubbleElement.classList.add('gift-bubble--escape')
+      window.setTimeout(() => bubbleElement.classList.remove('gift-bubble--escape'), 400)
+    }
+  }, [])
+
+  // פתיחת קופסה (מכה מלמטה / קפיצה על המכסה): יוצאת בועה עם הלוגו ושם המתנה
+  // שבורחת הצידה — צריך לרדוף אחריה ולקפוץ לתפוס אותה
+  const openGiftBox = useCallback((box, now) => {
     const g = game.current
     const element = giftBoxElementsRef.current[box.id]
     if (element) {
@@ -395,22 +446,19 @@ function App() {
       void element.offsetWidth
       element.classList.add('gift-box--bump')
     }
-    if (g.openedBoxes.has(box.id)) return
-    g.openedBoxes.add(box.id)
-    element?.classList.add('gift-box--opened')
+    if ((g.boxStates.get(box.id) ?? 'closed') !== 'closed') return
+    g.boxStates.set(box.id, 'bubble')
+    element?.classList.add('gift-box--open')
     playGiftBoxSound(audioContextRef.current)
 
-    if (worldLayerRef.current) {
-      const pop = document.createElement('div')
-      pop.className = 'key-pop'
-      pop.textContent = '🔑'
-      pop.style.left = `${box.x + box.width / 2 - 16}px`
-      pop.style.top = `${box.y - 34}px`
-      worldLayerRef.current.appendChild(pop)
-      window.setTimeout(() => pop.remove(), 700)
-    }
-    collectKey(box.keyId, KEYS_BY_ID[box.keyId].courseId)
-  }, [collectKey])
+    const boxCenterX = box.x + box.width / 2
+    const reach = BUBBLE_ESCAPE_DISTANCE + BUBBLE_DRIFT + BUBBLE_RADIUS
+    let side = Math.sign(boxCenterX - (g.x + PLAYER_WIDTH / 2)) || 1
+    if (boxCenterX + side * reach > WORLD_WIDTH) side = -1
+    if (boxCenterX + side * reach < 0) side = 1
+    g.bubbles.set(box.id, { startedAt: now, side, x: boxCenterX, y: box.y - BUBBLE_RADIUS })
+    bubbleElementsRef.current[box.id]?.classList.add('gift-bubble--active')
+  }, [])
 
   // --- לולאת המשחק ---
   useEffect(() => {
@@ -634,6 +682,9 @@ function App() {
         const overlapsY = g.y + PLAYER_HEIGHT > box.y && g.y < box.y + box.height
         const overlapsX = nextX + PLAYER_WIDTH > box.x && nextX < box.x + box.width
         if (!overlapsY || !overlapsX) continue
+        // אם הדמות כבר בתוך הקופסה (לא אמור לקרות) — נותנים לה לצאת ולא נתקעים
+        const alreadyInside = g.x + PLAYER_WIDTH > box.x && g.x < box.x + box.width
+        if (alreadyInside) continue
         if (g.vx > 0) nextX = box.x - PLAYER_WIDTH
         else if (g.vx < 0) nextX = box.x + box.width
       }
@@ -666,7 +717,7 @@ function App() {
             nextY = boxBottom
             g.vy = 0
             g.jumpCut = true
-            openGiftBox(box)
+            openGiftBox(box, now)
             break
           }
         }
@@ -711,6 +762,21 @@ function App() {
         g.onGround = true
         g.jumping = false
         g.groundKind = landing.kind ?? 'floor'
+        // קפיצה על המכסה של קופסה שעל הרצפה פותחת אותה (עם קפיצונת קטנה)
+        if (
+          landing.kind === 'box' &&
+          landing.placement === 'ground' &&
+          wasJumping &&
+          downwardVelocity > 0 &&
+          (g.boxStates.get(landing.id) ?? 'closed') === 'closed'
+        ) {
+          openGiftBox(landing, now)
+          g.vy = -JUMP_VELOCITY * 0.42
+          g.jumping = true
+          g.jumpCut = true
+          g.onGround = false
+          g.groundKind = null
+        }
       }
 
       // רצפת ביטחון (לא אמור לקרות, אבל שלא ייפול מהעולם)
@@ -772,41 +838,36 @@ function App() {
         break
       }
 
-      // Preview nearby gifts; collect only by landing on a key from above.
-      let nearbyKey = null
-      let collectedKeyThisFrame = false
-      for (const key of LEVEL.keys) {
-        if (key.inBox || g.collected.has(key.id)) continue
-        const dx = g.x + PLAYER_WIDTH / 2 - (key.x + 16)
-        const dy = g.y + PLAYER_HEIGHT / 2 - (key.y + 16)
-        const overlapsKeyX =
-          g.x + PLAYER_WIDTH > key.x && g.x < key.x + 32
-        const landedOnKey =
-          wasJumping &&
-          downwardVelocity > 0 &&
-          previousPlayerTop < key.y &&
-          previousPlayerBottom <= key.y + 6 &&
-          g.y + PLAYER_HEIGHT >= key.y
-        if (overlapsKeyX && landedOnKey) {
-          collectKey(key.id, key.courseId)
-          collectedKeyThisFrame = true
-          break
+      // בועות: יוצאות מהקופסה, בורחות הצידה ומרחפות — נוגעים בהן כדי לתפוס
+      for (const [boxId, bubble] of g.bubbles) {
+        const box = BOXES_BY_ID[boxId]
+        const age = now - bubble.startedAt
+        if (age > BUBBLE_LIFETIME_MS) {
+          releaseBubble(box)
+          continue
         }
-        if (!nearbyKey && Math.abs(dx) < 100 && Math.abs(dy) < 120) {
-          nearbyKey = key
+        const t = age / 1000
+        const progress = 1 - (1 - Math.min(t / 0.8, 1)) ** 3
+        const startY = box.y - BUBBLE_RADIUS
+        const hoverY = box.floorY - BUBBLE_HOVER_HEIGHT
+        bubble.y = startY + (hoverY - startY) * progress + Math.sin(t * 3.4) * 7
+        bubble.x =
+          box.x + box.width / 2 +
+          bubble.side * BUBBLE_ESCAPE_DISTANCE * progress +
+          Math.sin(t * 2.3) * BUBBLE_DRIFT * progress
+
+        const nearestX = Math.max(g.x, Math.min(bubble.x, g.x + PLAYER_WIDTH))
+        const nearestY = Math.max(g.y, Math.min(bubble.y, g.y + PLAYER_HEIGHT))
+        const touching = Math.hypot(bubble.x - nearestX, bubble.y - nearestY) < BUBBLE_RADIUS
+        if (touching && age > BUBBLE_ARM_MS) {
+          catchBubble(box)
+          continue
         }
-      }
-      if (collectedKeyThisFrame) {
-        game.current.nearbyKeyId = null
-        setGiftPreview(null)
-      } else if (nearbyKey) {
-        if (g.nearbyKeyId !== nearbyKey.id) {
-          g.nearbyKeyId = nearbyKey.id
-          setGiftPreview(nearbyKey.gift)
+        const element = bubbleElementsRef.current[boxId]
+        if (element) {
+          element.style.transform = `translate3d(${bubble.x - BUBBLE_RADIUS}px, ${bubble.y - BUBBLE_RADIUS}px, 0)`
+          element.classList.toggle('gift-bubble--fading', age > BUBBLE_LIFETIME_MS - 1200)
         }
-      } else if (g.nearbyKeyId) {
-        g.nearbyKeyId = null
-        setGiftPreview(null)
       }
 
       // רמז ⬇ מעל דלת סודית כשעומדים מולה
@@ -832,7 +893,7 @@ function App() {
       if (game.current.rafId) cancelAnimationFrame(game.current.rafId)
       game.current.lastTime = null
     }
-  }, [phase, collectKey, openGiftBox, syncCameraToDOM])
+  }, [phase, openGiftBox, catchBubble, releaseBubble, syncCameraToDOM])
 
   // --- טיימר הסבב ---
   useEffect(() => {
@@ -880,10 +941,7 @@ function App() {
       audioContextRef.current.resume()
     }
 
-    game.current.x = Math.max(
-      0,
-      Math.round(game.current.viewportWidth / 2 - PLAYER_WIDTH / 2)
-    )
+    game.current.x = PLAYER_SPAWN_X
     game.current.y = GROUND_Y - PLAYER_HEIGHT
     game.current.vx = 0
     game.current.vy = 0
@@ -899,17 +957,21 @@ function App() {
     game.current.downWasDown = false
     game.current.downTapped = false
     game.current.elevator = createElevatorState()
-    game.current.openedBoxes = new Set()
+    game.current.boxStates = new Map()
+    game.current.bubbles = new Map()
     for (const element of Object.values(giftBoxElementsRef.current)) {
-      element?.classList.remove('gift-box--opened', 'gift-box--bump')
+      element?.classList.remove('gift-box--open', 'gift-box--collected', 'gift-box--bump')
     }
+    for (const element of Object.values(bubbleElementsRef.current)) {
+      element?.classList.remove('gift-bubble--active', 'gift-bubble--caught', 'gift-bubble--escape', 'gift-bubble--fading')
+    }
+    window.clearTimeout(giftPreviewTimerRef.current)
     game.current.facing = 1
     game.current.cameraX = 0
     game.current.lastFootstepAt = 0
     game.current.lastClimbSoundAt = 0
     game.current.climbSoundIndex = 0
     game.current.wasClimbing = false
-    game.current.nearbyKeyId = null
     game.current.enemies = createEnemies()
     game.current.damageUntil = 0
     for (const enemy of game.current.enemies) {
@@ -986,9 +1048,9 @@ function App() {
         <div className="scene scene--center">
           <h1>יריד הלידים — מתחם המשחק</h1>
           <p className="subtitle">
-            אספו כמה שיותר מפתחות תוך דקה ועשרים ושלוש שניות —
+            פתחו את קופסאות המתנה של העסקים — מכה מלמטה או קפיצה על המכסה —
             <br />
-            כל מפתח פותח קורס של בעלת עסק במתחם הקורסים
+            ותפסו את הבועה שבורחת! יש לכם דקה ועשרים ושלוש שניות
           </p>
           <button className="primary-btn" onClick={startGame}>
             התחילו לשחק
@@ -1104,28 +1166,37 @@ function App() {
                 ref={(el) => {
                   giftBoxElementsRef.current[box.id] = el
                 }}
-                className="gift-box"
+                className={`gift-box gift-box--${box.placement}`}
                 style={{
                   left: box.x,
                   top: box.y,
                   width: box.width,
                   height: box.height,
                 }}
+                title={`${box.gift.businessName} — ${box.gift.giftName}`}
               >
-                <span className="gift-box__icon">🎁</span>
+                <span className="gift-box__ribbon" aria-hidden="true" />
+                <span className="gift-box__logo">
+                  <GiftLogo gift={box.gift} />
+                </span>
+                <span className="gift-box__check" aria-hidden="true">✓</span>
               </div>
             ))}
 
-            {LEVEL.keys.filter((k) => !k.inBox).map((k) => (
+            {LEVEL.giftBoxes.map((box) => (
               <div
-                key={k.id}
+                key={`bubble-${box.id}`}
                 ref={(el) => {
-                  keyElementsRef.current[k.id] = el
+                  bubbleElementsRef.current[box.id] = el
                 }}
-                className="key-item"
-                style={{ left: k.x, top: k.y }}
+                className="gift-bubble"
+                style={{ width: BUBBLE_RADIUS * 2, height: BUBBLE_RADIUS * 2 }}
+                aria-hidden="true"
               >
-                🔑
+                <span className="gift-bubble__logo">
+                  <GiftLogo gift={box.gift} />
+                </span>
+                <span className="gift-bubble__name">{box.gift.giftName}</span>
               </div>
             ))}
 
@@ -1188,9 +1259,8 @@ function App() {
               <div className="hud" ref={hudRef}>
                 <div className="hud-pill">⏱ {formattedTime}</div>
                 <div className="hud-pill">
-                  🔑 {keysCollectedCount} / {TOTAL_KEYS}
+                  🎁 {keysCollectedCount} / {TOTAL_KEYS}
                 </div>
-                <div className="hud-pill">🎁 {giftsClaimedCount}</div>
               </div>
 
               <div className="touch-controls">
@@ -1239,14 +1309,10 @@ function App() {
       {giftPreview && phase === 'playing' && (
         <aside className="gift-preview" aria-live="polite">
           <div className="gift-preview__logo">
-            {giftPreview.logoUrl ? (
-              <img src={giftPreview.logoUrl} alt="" />
-            ) : (
-              <span aria-hidden="true">🎁</span>
-            )}
+            <GiftLogo gift={giftPreview} />
           </div>
           <div className="gift-preview__copy">
-            <span>{giftPreview.businessName}</span>
+            <span>🎉 נאסף! · {giftPreview.businessName}</span>
             <strong>{giftPreview.giftName}</strong>
           </div>
         </aside>
@@ -1258,8 +1324,23 @@ function App() {
           <p className="subtitle">נאספו {keysCollectedCount} מתוך {COURSES.length} מתנות</p>
 
           <div className="gift-selection" dir="rtl">
-            <h2>המתנות שלך</h2>
-            <p className="gift-selection__count">{giftsClaimedCount} נבחרו למשלוח</p>
+            <h2>לאילו עסקים תרצו להצטרף?</h2>
+            <p className="gift-selection__count">
+              סמנו את העסקים שתרצו לקבל מהם את המתנה ועדכונים · {giftsClaimedCount} נבחרו
+            </p>
+            <button
+              type="button"
+              className="secondary-btn gift-selection__all"
+              onClick={() =>
+                setClaimedGiftIds(
+                  giftsClaimedCount === COURSES.length
+                    ? new Set()
+                    : new Set(COURSES.map((course) => course.id))
+                )
+              }
+            >
+              {giftsClaimedCount === COURSES.length ? 'ניקוי הבחירה' : 'בחרו הכול'}
+            </button>
             <div className="gift-selection__list">
               {collectedGifts.map((gift) => (
                 <label className="gift-selection__item" key={gift.id}>
@@ -1269,14 +1350,14 @@ function App() {
                     onChange={() => toggleGiftSelection(gift.id)}
                   />
                   <span className="gift-selection__logo">
-                    {gift.logoUrl ? <img src={gift.logoUrl} alt="" /> : '🎁'}
+                    <GiftLogo gift={gift} />
                   </span>
                   <span className="gift-selection__text">
                     <strong>{gift.giftName}</strong>
                     <small>{gift.businessName}</small>
                   </span>
                   <span className="gift-selection__status">
-                    {claimedGiftIds.has(gift.id) ? 'נבחרה' : 'לא נבחרה'}
+                    {claimedGiftIds.has(gift.id) ? 'מצטרפים ✓' : 'נאסף במשחק 🎁'}
                   </span>
                 </label>
               ))}
@@ -1288,14 +1369,14 @@ function App() {
                     onChange={() => toggleGiftSelection(gift.id)}
                   />
                   <span className="gift-selection__logo">
-                    {gift.logoUrl ? <img src={gift.logoUrl} alt="" /> : '✨'}
+                    <GiftLogo gift={gift} />
                   </span>
                   <span className="gift-selection__text">
                     <strong>{gift.giftName}</strong>
                     <small>{gift.businessName} · אפשר להוסיף גם בלי לאסוף במשחק</small>
                   </span>
                   <span className="gift-selection__status">
-                    {claimedGiftIds.has(gift.id) ? 'נוספה' : 'להוספה'}
+                    {claimedGiftIds.has(gift.id) ? 'מצטרפים ✓' : 'להצטרפות'}
                   </span>
                 </label>
               ))}
@@ -1308,7 +1389,7 @@ function App() {
             </p>
           ) : (
             <p className="result-badge">
-              עוד {KEYS_REQUIRED_FOR_FREE_ENTRY - keysCollectedCount} מפתחות
+              עוד {KEYS_REQUIRED_FOR_FREE_ENTRY - keysCollectedCount} מתנות
               היו נותנים כניסה חינם — אפשר גם לרכוש כרטיס למתחם הקורסים
             </p>
           )}
@@ -1318,8 +1399,8 @@ function App() {
               <input type="text" placeholder="שם מלא" required />
               <input type="email" placeholder="אימייל" required />
               <input type="tel" placeholder="טלפון" />
-              <button type="submit" className="primary-btn">
-                קבלו את הפרסים שלכם
+              <button type="submit" className="primary-btn" disabled={giftsClaimedCount === 0}>
+                {giftsClaimedCount === 0 ? 'סמנו לפחות עסק אחד' : 'קבלו את המתנות שבחרתם'}
               </button>
             </form>
           ) : (
