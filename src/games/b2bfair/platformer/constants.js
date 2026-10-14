@@ -1,4 +1,5 @@
 // כל הפרמטרים של המשחק במקום אחד — קל לכוונן בלי לחפש בקוד
+import { BUSINESSES } from './businesses'
 
 // --- עולם ופיזיקה ---
 export const GRAVITY = 2200 // px/s^2
@@ -21,7 +22,7 @@ export const PLAYER_HEIGHT = 56
 // --- משחק ---
 export const ROUND_SECONDS = 83
 export const KEYS_REQUIRED_FOR_FREE_ENTRY = 4
-export const TOTAL_KEYS = 30
+export const TOTAL_KEYS = Math.min(BUSINESSES.length, 30) // מפתח לכל עסק (יש 30 משבצות)
 
 // --- רקע: ספרייה רחבה עם שלוש קומות ---
 import libraryBackground from './assets/magnific__2d-sideview-platform-game-level-background-crossse__76353.png'
@@ -45,16 +46,8 @@ const FLOOR_2_Y = Math.round(IMAGE_RENDER_HEIGHT * FLOOR_2_RATIO)
 export const GROUND_Y = Math.round(IMAGE_RENDER_HEIGHT * 0.96)
 
 // Gift details can be connected to the fair spreadsheet when its data is available.
-// רשימת העסקים והמתנות. כרגע נתוני דוגמה — יוחלפו ברשימת העסקים של היריד.
-// logoUrl: כתובת ללוגו (למשל '/logos/name.png'). בלי לוגו מוצג עיגול צבעוני עם ראשי תיבות.
-// color: צבע המותג — משמש לקונפטי ולמסגרת בבועת הבמה.
-export const COURSES = Array.from({ length: 30 }, (_, i) => ({
-  id: `gift-${i + 1}`,
-  businessName: `עסק לדוגמה ${i + 1}`,
-  giftName: `מתנה מספר ${i + 1}`,
-  logoUrl: null,
-  color: `hsl(${(i * 47) % 360} 65% 45%)`,
-}))
+// רשימת העסקים והמתנות של היריד (מקובץ שנוצר מגיליון התגובות של העסקים)
+export const COURSES = BUSINESSES
 
 // --- בועת הבמה: אחרי תפיסת מפתח ---
 // כמה זמן יש ללחוץ "רוצה!" לפני שהמתנה מתפוגגת
@@ -118,31 +111,43 @@ function buildLevel() {
     ),
   ]
 
+  // יש 30 משבצות; כשיש פחות עסקים, המפתחות מתפזרים באופן שווה על כל הקומות
+  const usedSlotIndexes = Array.from({ length: TOTAL_KEYS }, (_, i) =>
+    Math.min(keySlots.length - 1, Math.round((i * keySlots.length) / TOTAL_KEYS))
+  )
+  const courseBySlot = new Map(usedSlotIndexes.map((slotIndex, i) => [slotIndex, COURSES[i]]))
+
   // --- קופסאות מתנה (כמו קוביות "?" במריו): מכה מלמטה מקפיצה מפתח ---
-  // כל קופסה מחביאה את המפתח של המשבצת שמתחתיה (אינדקס ב-keySlots),
-  // כך שסך המפתחות נשאר TOTAL_KEYS.
+  // כל קופסה מחביאה את המפתח של המשבצת שמתחתיה (אינדקס ב-keySlots).
+  // קופסה שאין מתחתיה מפתח (כי יש פחות עסקים ממשבצות) לא נבנית.
   const GIFT_BOX_SIZE = 40
   const GIFT_BOX_GAP_ABOVE_FLOOR = 130 // המרחק מהרצפה לתחתית הקופסה
   const giftBoxSlotIndexes = [2, 7, 13, 17, 20, 26]
   const floorYBySlotIndex = (index) => floorSlots[Math.floor(index / 10)].floorY
-  const giftBoxes = giftBoxSlotIndexes.map((slotIndex) => ({
-    id: `box-${slotIndex}`,
-    keyId: `key-${COURSES[slotIndex].id}`,
-    x: Math.round(IMAGE_RENDER_WIDTH * keySlots[slotIndex].x) - GIFT_BOX_SIZE / 2,
-    y: floorYBySlotIndex(slotIndex) - GIFT_BOX_GAP_ABOVE_FLOOR - GIFT_BOX_SIZE,
-    width: GIFT_BOX_SIZE,
-    height: GIFT_BOX_SIZE,
-  }))
+  const giftBoxes = giftBoxSlotIndexes
+    .filter((slotIndex) => courseBySlot.has(slotIndex))
+    .map((slotIndex) => ({
+      id: `box-${slotIndex}`,
+      keyId: `key-${courseBySlot.get(slotIndex).id}`,
+      x: Math.round(IMAGE_RENDER_WIDTH * keySlots[slotIndex].x) - GIFT_BOX_SIZE / 2,
+      y: floorYBySlotIndex(slotIndex) - GIFT_BOX_GAP_ABOVE_FLOOR - GIFT_BOX_SIZE,
+      width: GIFT_BOX_SIZE,
+      height: GIFT_BOX_SIZE,
+    }))
   const keyIdsInBoxes = new Set(giftBoxes.map((box) => box.keyId))
 
-  const keys = keySlots.map((slot, i) => ({
-    id: `key-${COURSES[i].id}`,
-    courseId: COURSES[i].id,
-    gift: COURSES[i],
-    x: Math.round(IMAGE_RENDER_WIDTH * slot.x) - 16,
-    y: slot.y - 44,
-    inBox: keyIdsInBoxes.has(`key-${COURSES[i].id}`),
-  }))
+  const keys = usedSlotIndexes.map((slotIndex) => {
+    const slot = keySlots[slotIndex]
+    const course = courseBySlot.get(slotIndex)
+    return {
+      id: `key-${course.id}`,
+      courseId: course.id,
+      gift: course,
+      x: Math.round(IMAGE_RENDER_WIDTH * slot.x) - 16,
+      y: slot.y - 44,
+      inBox: keyIdsInBoxes.has(`key-${course.id}`),
+    }
+  })
 
   // --- מדפים צפים בין הקומות: עולים עליהם מלמטה, ⬇ מפיל מהם ---
   // המדפים ממורכזים ברווח שבין שתי משבצות מפתחות, כדי שלא יכסו מפתח מלמעלה

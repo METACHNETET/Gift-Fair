@@ -187,8 +187,9 @@ const GIFT_BOX_SOLIDS = LEVEL.giftBoxes.map((box) => ({ ...box, kind: 'box' }))
 const KEYS_BY_ID = Object.fromEntries(LEVEL.keys.map((key) => [key.id, key]))
 const DOORS_BY_ID = Object.fromEntries(LEVEL.doors.map((door) => [door.id, door]))
 
+// ראשי תיבות משתי המילים הראשונות, בלי סימנים כמו מקף או נקודה
 function initials(name) {
-  const words = name.trim().split(/\s+/)
+  const words = name.match(/[\p{L}\p{N}]+/gu) ?? []
   return (words[0]?.[0] ?? '') + (words[1]?.[0] ?? '')
 }
 
@@ -245,6 +246,7 @@ function GiftStage({ stage, onWant }) {
         </span>
         <p className="gift-stage__business">{gift.businessName}</p>
         <h2 className="gift-stage__gift">{gift.giftName}</h2>
+        {gift.giftDescription && <p className="gift-stage__desc">{gift.giftDescription}</p>}
         {status === 'deciding' && (
           <button type="button" className="gift-stage__want" onPointerDown={onWant}>
             🎁 רוצה!
