@@ -947,7 +947,6 @@
   display: grid;
   place-items: center;
   background: radial-gradient(circle at 50% 50%, rgba(13, 10, 18, 0.45), rgba(13, 10, 18, 0.82));
-  cursor: pointer;
   animation: gift-stage-fade 0.25s ease-out;
 }
 
@@ -958,7 +957,7 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  width: min(360px, 82vw, 82vh);
+  width: min(380px, 86vw, 86vh);
   aspect-ratio: 1;
   border-radius: 50%;
   text-align: center;
@@ -969,83 +968,53 @@
   animation: gift-stage-pop 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
 }
 
-.b2b-platformer .gift-stage__bubble--opened {
-  animation: gift-stage-burst 0.5s cubic-bezier(0.3, 1.6, 0.5, 1);
-}
-
-.b2b-platformer .gift-stage__box {
-  position: relative;
-  width: 118px;
-  height: 104px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #f6d06a 0%, #d9962a 100%);
-  border: 3px solid #fff1c1;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
-}
-
-.b2b-platformer .gift-stage__box--shake-1 { animation: gift-shake 0.3s ease-in-out; }
-.b2b-platformer .gift-stage__box--shake-2 { animation: gift-shake-strong 0.32s ease-in-out; }
-.b2b-platformer .gift-stage__box--shake-3 { animation: gift-shake-strong 0.32s ease-in-out; }
-
-.b2b-platformer .gift-stage__ribbon::before,
-.b2b-platformer .gift-stage__ribbon::after {
-  content: '';
+/* טבעת הזמן: מתרוקנת לאורך DECIDE_MS */
+.b2b-platformer .gift-stage__timer {
   position: absolute;
-  background: #c8322f;
+  inset: -10px;
+  width: calc(100% + 20px);
+  height: calc(100% + 20px);
+  transform: rotate(-90deg);
+  pointer-events: none;
 }
 
-.b2b-platformer .gift-stage__ribbon::before {
-  left: 50%;
-  top: -3px;
-  bottom: -3px;
-  width: 16px;
-  transform: translateX(-50%);
+.b2b-platformer .gift-stage__timer circle {
+  fill: none;
+  stroke: #f1d896;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: 302;
+  stroke-dashoffset: 0;
+  filter: drop-shadow(0 0 4px rgba(241, 216, 150, 0.9));
+  animation-name: gift-stage-timer;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
 }
 
-.b2b-platformer .gift-stage__ribbon::after {
-  left: 50%;
-  top: -24px;
-  width: 50px;
-  height: 26px;
-  border-radius: 50% 50% 0 0;
-  transform: translateX(-50%);
-  box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.2);
-}
-
-.b2b-platformer .gift-stage__box-logo,
 .b2b-platformer .gift-stage__logo {
-  position: absolute;
+  position: relative;
   display: grid;
   place-items: center;
+  width: 108px;
+  height: 108px;
   overflow: hidden;
   border-radius: 50%;
   background: #fff;
-}
-
-.b2b-platformer .gift-stage__box-logo {
-  inset: 14px 24px;
-  box-shadow: 0 0 0 3px #fff1c1;
-}
-
-.b2b-platformer .gift-stage__logo {
-  position: relative;
-  width: 120px;
-  height: 120px;
   box-shadow: 0 0 0 4px var(--brand, #f1d896), 0 0 30px rgba(255, 255, 255, 0.35);
 }
 
-.b2b-platformer .gift-stage__box-logo img,
 .b2b-platformer .gift-stage__logo img {
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
 
-.b2b-platformer .gift-stage__box-logo .gift-logo-fallback { font-size: 22px; }
-.b2b-platformer .gift-stage__logo .gift-logo-fallback { font-size: 38px; }
+.b2b-platformer .gift-stage__logo .gift-logo-fallback {
+  font-size: 34px;
+}
 
 .b2b-platformer .gift-stage__business {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: #f1d896;
   font-size: 15px;
   font-weight: 700;
@@ -1053,43 +1022,68 @@
 
 .b2b-platformer .gift-stage__gift {
   margin: 0;
-  max-width: 78%;
+  max-width: 76%;
   color: #fff;
-  font-size: clamp(20px, 3.4vw, 28px);
+  font-size: clamp(19px, 3.2vw, 26px);
   font-weight: 900;
   line-height: 1.15;
 }
 
-.b2b-platformer .gift-stage__added {
-  margin: 2px 0 0;
-  color: #bfe6c9;
-  font-size: 13px;
-}
-
-.b2b-platformer .gift-stage__hint {
+/* הכפתור היחיד: גדול, פועם, ברור */
+.b2b-platformer .gift-stage__want {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  margin: 2px 0 0;
-  color: rgba(244, 239, 230, 0.85);
-  font-size: 13px;
+  margin-top: 10px;
+  padding: 10px 34px 8px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffd977 0%, #f0a92e 100%);
+  box-shadow: 0 6px 0 #b4741a, 0 10px 24px rgba(240, 169, 46, 0.55);
+  color: #2b1a05;
+  font-family: inherit;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.1;
+  cursor: pointer;
+  animation: gift-want-pulse 0.9s ease-in-out infinite;
+  touch-action: manipulation;
 }
 
-.b2b-platformer .gift-stage__dots {
-  display: flex;
-  gap: 6px;
+.b2b-platformer .gift-stage__want small {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.7;
 }
 
-.b2b-platformer .gift-stage__dots span {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 2px solid #f1d896;
+.b2b-platformer .gift-stage__want:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #b4741a, 0 6px 16px rgba(240, 169, 46, 0.5);
 }
 
-.b2b-platformer .gift-stage__dots span.is-on {
-  background: #f1d896;
+.b2b-platformer .gift-stage__result {
+  margin: 10px 0 0;
+  color: #bfe6c9;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.b2b-platformer .gift-stage__result--faded {
+  color: rgba(244, 239, 230, 0.8);
+}
+
+/* נבחר: הבועה קופצת ועפה לסל בפינה */
+.b2b-platformer .gift-stage--claimed .gift-stage__bubble {
+  animation: gift-stage-claim 1.1s cubic-bezier(0.5, 0, 0.75, 0) forwards;
+}
+
+/* לא נבחר: הבועה נמסה כמו בועת סבון */
+.b2b-platformer .gift-stage--faded {
+  animation: gift-stage-fade-out 0.9s ease-in forwards;
+}
+
+.b2b-platformer .gift-stage--faded .gift-stage__bubble {
+  animation: gift-stage-dissolve 0.9s ease-in forwards;
 }
 
 .b2b-platformer .gift-stage__confetti {
@@ -1104,7 +1098,12 @@
   height: 14px;
   border-radius: 2px;
   opacity: 0;
-  animation: gift-confetti 1.1s ease-out forwards;
+  animation: gift-confetti 1s ease-out forwards;
+}
+
+/* מונה הסל ב-HUD קופץ כשנוספת מתנה */
+.b2b-platformer .hud-pill--basket {
+  animation: basket-bump 0.5s cubic-bezier(0.3, 1.8, 0.5, 1);
 }
 
 @keyframes gift-stage-fade {
@@ -1112,32 +1111,47 @@
   to { opacity: 1; }
 }
 
+@keyframes gift-stage-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 @keyframes gift-stage-pop {
   0% { transform: scale(0.2); opacity: 0; }
   100% { transform: scale(1); opacity: 1; }
 }
 
-@keyframes gift-stage-burst {
-  0% { transform: scale(0.85); }
-  100% { transform: scale(1); }
+@keyframes gift-stage-timer {
+  from { stroke-dashoffset: 0; stroke: #f1d896; }
+  70% { stroke: #f1d896; }
+  to { stroke-dashoffset: 302; stroke: #ff6b5e; }
 }
 
-@keyframes gift-shake {
-  0%, 100% { transform: rotate(0); }
-  25% { transform: rotate(-7deg); }
-  75% { transform: rotate(7deg); }
+@keyframes gift-want-pulse {
+  0%, 100% { scale: 1; }
+  50% { scale: 1.07; }
 }
 
-@keyframes gift-shake-strong {
-  0%, 100% { transform: rotate(0) scale(1); }
-  20% { transform: rotate(-12deg) scale(1.06); }
-  50% { transform: rotate(10deg) scale(1.1); }
-  80% { transform: rotate(-6deg) scale(1.04); }
+@keyframes gift-stage-claim {
+  0% { transform: scale(1); opacity: 1; }
+  35% { transform: scale(1.08); opacity: 1; }
+  100% { transform: translate(38vw, -42vh) scale(0.08); opacity: 0.2; }
+}
+
+@keyframes gift-stage-dissolve {
+  0% { transform: scale(1); filter: blur(0); opacity: 1; }
+  100% { transform: scale(1.25); filter: blur(14px); opacity: 0; }
 }
 
 @keyframes gift-confetti {
   0% { opacity: 1; transform: rotate(var(--angle)) translateY(0) rotate(0); }
   100% { opacity: 0; transform: rotate(var(--angle)) translateY(calc(var(--distance) * -1)) rotate(540deg); }
+}
+
+@keyframes basket-bump {
+  0% { scale: 1; }
+  40% { scale: 1.35; background: rgba(47, 166, 90, 0.85); }
+  100% { scale: 1; }
 }
 
 /* --- מסך סיום: בחירת עסקים --- */

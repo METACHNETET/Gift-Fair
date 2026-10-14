@@ -23,8 +23,10 @@ import {
   IMAGE_RENDER_HEIGHT,
   COURSES,
   LEVEL,
-  UNWRAP_TAPS,
-  REVEAL_MS,
+  DECIDE_MS,
+  CLAIMED_MS,
+  FADE_MS,
+  DECIDE_GUARD_MS,
 } from './constants'
 import robotSpriteSheet from './assets/robot-sprite-transparent.png'
 import robotClimbSpriteSheet from './assets/robot-sprite-climb-no-ladder.png'
@@ -200,10 +202,9 @@ function GiftLogo({ gift }) {
   )
 }
 
-function playUnwrapTapSound(audioContext, tapIndex) {
+function playFadeSound(audioContext) {
   if (audioContext?.state !== 'running') return
-  const notes = [523.25, 659.25, 783.99, 987.77]
-  playLadderNotes(audioContext, [notes[tapIndex % notes.length]], audioContext.currentTime, 0)
+  playLadderNotes(audioContext, [659.25, 523.25, 392], audioContext.currentTime, 0.11)
 }
 
 function playRevealSound(audioContext) {
@@ -213,55 +214,45 @@ function playRevealSound(audioContext) {
   playLadderNotes(audioContext, [1046.5, 1318.51, 1567.98, 2093], t + 0.32, 0.05)
 }
 
-// בועת הבמה: המתנה של העסק במרכז המסך — קודם עטופה (לוחצים כדי לפתוח), ואז נחשפת
-function GiftStage({ stage, onTap }) {
-  const { gift, taps, opened } = stage
+// בועת הבמה: המתנה של העסק במרכז המסך.
+// deciding — טבעת זמן מתרוקנת וכפתור "רוצה!"; claimed — עפה לסל; faded — מתפוגגת.
+function GiftStage({ stage, onWant }) {
+  const { gift, status } = stage
   return (
-    <div className="gift-stage" onPointerDown={onTap} role="dialog" aria-live="polite">
-      <div
-        className={`gift-stage__bubble${opened ? ' gift-stage__bubble--opened' : ''}`}
-        style={{ '--brand': gift.color }}
-      >
-        {!opened ? (
-          <>
-            <div key={taps} className={`gift-stage__box gift-stage__box--shake-${Math.min(taps, 3)}`}>
-              <span className="gift-stage__ribbon" aria-hidden="true" />
-              <span className="gift-stage__box-logo">
-                <GiftLogo gift={gift} />
-              </span>
-            </div>
-            <p className="gift-stage__business">{gift.businessName}</p>
-            <p className="gift-stage__hint">
-              לחצו רווח / הקישו לפתיחה
-              <span className="gift-stage__dots">
-                {Array.from({ length: UNWRAP_TAPS }, (_, i) => (
-                  <span key={i} className={i < taps ? 'is-on' : ''} />
-                ))}
-              </span>
-            </p>
-          </>
-        ) : (
-          <>
-            <div className="gift-stage__confetti" aria-hidden="true">
-              {Array.from({ length: 22 }, (_, i) => (
-                <span
-                  key={i}
-                  style={{
-                    '--angle': `${(i / 22) * 360}deg`,
-                    '--distance': `${120 + (i % 4) * 28}px`,
-                    background: i % 3 === 0 ? gift.color : i % 3 === 1 ? '#f1d896' : '#ffffff',
-                  }}
-                />
-              ))}
-            </div>
-            <span className="gift-stage__logo">
-              <GiftLogo gift={gift} />
-            </span>
-            <p className="gift-stage__business">{gift.businessName}</p>
-            <h2 className="gift-stage__gift">{gift.giftName}</h2>
-            <p className="gift-stage__added">🎉 נוסף לסל המתנות שלכם</p>
-          </>
+    <div className={`gift-stage gift-stage--${status}`} role="dialog" aria-live="polite">
+      <div className="gift-stage__bubble" style={{ '--brand': gift.color }}>
+        {status === 'deciding' && (
+          <svg className="gift-stage__timer" viewBox="0 0 100 100" aria-hidden="true">
+            <circle cx="50" cy="50" r="48" style={{ animationDuration: `${DECIDE_MS}ms` }} />
+          </svg>
         )}
+        {status === 'claimed' && (
+          <div className="gift-stage__confetti" aria-hidden="true">
+            {Array.from({ length: 22 }, (_, i) => (
+              <span
+                key={i}
+                style={{
+                  '--angle': `${(i / 22) * 360}deg`,
+                  '--distance': `${120 + (i % 4) * 28}px`,
+                  background: i % 3 === 0 ? gift.color : i % 3 === 1 ? '#f1d896' : '#ffffff',
+                }}
+              />
+            ))}
+          </div>
+        )}
+        <span className="gift-stage__logo">
+          <GiftLogo gift={gift} />
+        </span>
+        <p className="gift-stage__business">{gift.businessName}</p>
+        <h2 className="gift-stage__gift">{gift.giftName}</h2>
+        {status === 'deciding' && (
+          <button type="button" className="gift-stage__want" onPointerDown={onWant}>
+            🎁 רוצה!
+            <small>רווח / הקשה</small>
+          </button>
+        )}
+        {status === 'claimed' && <p className="gift-stage__result">נוסף לסל! 🎉</p>}
+        {status === 'faded' && <p className="gift-stage__result gift-stage__result--faded">התפוגג... 💨</p>}
       </div>
     </div>
   )
@@ -312,7 +303,7 @@ function App() {
   // בועת הבמה הפתוחה כרגע: { gift, taps, opened } או null
   const [giftStage, setGiftStage] = useState(null)
   const giftStageRef = useRef(null)
-  const revealTimerRef = useRef(null)
+  const stageTimerRef = useRef(null)
   const [claimedGiftIds, setClaimedGiftIds] = useState(() => new Set())
 
   const viewportRef = useRef(null)
@@ -379,7 +370,7 @@ function App() {
       if (giftStageRef.current) {
         if (['Space', 'ArrowUp', 'Enter', 'KeyW'].includes(e.code)) {
           e.preventDefault()
-          if (!e.repeat) tapGiftStageRef.current()
+          if (!e.repeat) wantGiftRef.current()
         }
         return
       }
@@ -471,27 +462,46 @@ function App() {
     syncCameraToDOM()
   }, [phase, syncCameraToDOM])
 
-  // עוצר את המשחק ופותח את בועת הבמה של העסק
+  // עוצר את המשחק ופותח את בועת הבמה של העסק. יש DECIDE_MS ללחוץ "רוצה!",
+  // ואם לא — המתנה מתפוגגת והמשחק ממשיך.
   function openGiftStage(courseId) {
     const g = game.current
     g.paused = true
     g.keysDown.clear()
     g.vx = 0
     const gift = COURSES.find((course) => course.id === courseId)
-    const stage = { gift, taps: 0, opened: UNWRAP_TAPS === 0 }
-    giftStageRef.current = stage
-    setGiftStage(stage)
-    if (stage.opened) revealGift()
+    showGiftStage({ gift, status: 'deciding', openedAt: performance.now() })
+    playGiftBoxSound(audioContextRef.current)
+    window.clearTimeout(stageTimerRef.current)
+    stageTimerRef.current = window.setTimeout(fadeGiftStage, DECIDE_MS)
   }
 
-  function revealGift() {
+  function showGiftStage(stage) {
+    giftStageRef.current = stage
+    setGiftStage(stage)
+  }
+
+  function wantGift() {
+    const stage = giftStageRef.current
+    if (!stage || stage.status !== 'deciding') return
+    if (performance.now() - stage.openedAt < DECIDE_GUARD_MS) return
+    setClaimedGiftIds((previous) => new Set(previous).add(stage.gift.id))
+    showGiftStage({ ...stage, status: 'claimed' })
     playRevealSound(audioContextRef.current)
-    window.clearTimeout(revealTimerRef.current)
-    revealTimerRef.current = window.setTimeout(closeGiftStage, REVEAL_MS)
+    window.clearTimeout(stageTimerRef.current)
+    stageTimerRef.current = window.setTimeout(closeGiftStage, CLAIMED_MS)
+  }
+
+  function fadeGiftStage() {
+    const stage = giftStageRef.current
+    if (!stage || stage.status !== 'deciding') return
+    showGiftStage({ ...stage, status: 'faded' })
+    playFadeSound(audioContextRef.current)
+    stageTimerRef.current = window.setTimeout(closeGiftStage, FADE_MS)
   }
 
   function closeGiftStage() {
-    window.clearTimeout(revealTimerRef.current)
+    window.clearTimeout(stageTimerRef.current)
     giftStageRef.current = null
     setGiftStage(null)
     const g = game.current
@@ -499,25 +509,10 @@ function App() {
     g.lastTime = null
     g.paused = false
   }
-
-  // לחיצה בזמן שהבועה פתוחה: מנערת את הקופסה; בלחיצה האחרונה היא נפתחת.
-  // אחרי שנפתחה — לחיצה נוספת סוגרת מהר יותר.
-  function tapGiftStage() {
-    const stage = giftStageRef.current
-    if (!stage) return
-    if (stage.opened) {
-      closeGiftStage()
-      return
-    }
-    const taps = stage.taps + 1
-    playUnwrapTapSound(audioContextRef.current, taps - 1)
-    const next = { ...stage, taps, opened: taps >= UNWRAP_TAPS }
-    giftStageRef.current = next
-    setGiftStage(next)
-    if (next.opened) revealGift()
-  }
-  const tapGiftStageRef = useRef(tapGiftStage)
-  tapGiftStageRef.current = tapGiftStage
+  const wantGiftRef = useRef(wantGift)
+  wantGiftRef.current = wantGift
+  // fadeGiftStage/closeGiftStage רצים מתוך setTimeout ומשתמשים רק ב-refs ו-setters,
+  // לכן גרסה ישנה שלהם עדיין עובדת נכון
 
   const collectKey = useCallback((keyId, courseId) => {
     if (game.current.collected.has(keyId)) return
@@ -1044,7 +1039,7 @@ function App() {
     game.current.paused = false
     giftStageRef.current = null
     setGiftStage(null)
-    window.clearTimeout(revealTimerRef.current)
+    window.clearTimeout(stageTimerRef.current)
     game.current.jumpWasDown = false
     game.current.jumpCut = false
     game.current.jumpBufferedAt = -Infinity
@@ -1349,6 +1344,9 @@ function App() {
                 <div className="hud-pill">
                   🔑 {keysCollectedCount} / {TOTAL_KEYS}
                 </div>
+                <div className="hud-pill hud-pill--basket" key={giftsClaimedCount}>
+                  🎁 {giftsClaimedCount}
+                </div>
               </div>
 
               <div className="touch-controls">
@@ -1407,7 +1405,7 @@ function App() {
       )}
 
       {giftStage && phase === 'playing' && (
-        <GiftStage stage={giftStage} onTap={() => tapGiftStageRef.current()} />
+        <GiftStage stage={giftStage} onWant={() => wantGiftRef.current()} />
       )}
 
       {phase === 'ended' && (
@@ -1416,9 +1414,9 @@ function App() {
           <p className="subtitle">נאספו {keysCollectedCount} מתוך {COURSES.length} מתנות</p>
 
           <div className="gift-selection" dir="rtl">
-            <h2>לאילו עסקים תרצו להצטרף?</h2>
+            <h2>המתנות שבחרתם 🎁</h2>
             <p className="gift-selection__count">
-              סמנו את העסקים שתרצו לקבל מהם את המתנה ועדכונים · {giftsClaimedCount} נבחרו
+              {giftsClaimedCount} עסקים נבחרו · אפשר להוסיף או להוריד לפני השליחה
             </p>
             <button
               type="button"
