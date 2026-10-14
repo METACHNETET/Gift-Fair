@@ -37,11 +37,20 @@ const FAIRS: FairCard[] = [
     accentColor: "#7dd3fc",
     available: true,
   },
+  {
+    id: "b2bfair",
+    path: "/b2bfair",
+    title: "יריד B2B",
+    subtitle: "B2B Fair",
+    emoji: "🤝",
+    description: "טפסו בין קומות המכללה לעסקים, אספו מפתחות וגלו את דוכני היריד",
+    gradient: "linear-gradient(135deg, #1e293b 0%, #78350f 50%, #d4af5f 100%)",
+    accentColor: "#f1d896",
+    available: true,
+  },
 ];
 
-const COMING_SOON: { title: string; subtitle: string; emoji: string }[] = [
-  { title: "יריד B2B", subtitle: "B2B Fair", emoji: "🤝" },
-];
+const COMING_SOON: { title: string; subtitle: string; emoji: string }[] = [];
 
 export default function FairHub() {
   const navigate = useNavigate();

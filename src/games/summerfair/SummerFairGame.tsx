@@ -472,6 +472,7 @@ export default function SummerFairGame() {
   type Phase = "intro" | "email" | "playing" | "win" | "bomb" | "finale";
   const [phase, setPhase] = useState<Phase>("intro");
   const [introStep, setIntroStep] = useState(0);
+  const [showFairEndedNotice, setShowFairEndedNotice] = useState(true);
 
   // ── User info ──
   const [userEmail, setUserEmail] = useState("");
@@ -870,6 +871,34 @@ export default function SummerFairGame() {
 
   return (
     <div className="summer-fair-root fixed inset-0 overflow-hidden" style={{ fontFamily: "'Heebo', sans-serif", cursor: phase === "playing" ? "none" : "auto" }} dir="rtl">
+      {/* ── Fair Ended Notice ── */}
+      <AnimatePresence>
+        {showFairEndedNotice && (
+          <motion.div className="fixed inset-0 z-[600] flex items-center justify-center px-6"
+            style={{ background: "rgba(8,30,50,0.72)", backdropFilter: "blur(4px)" }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div className="text-center rounded-[28px]"
+              style={{ background: "linear-gradient(160deg,#eaf6fb,#dcf1fa)", border: "2px solid rgba(14,116,144,0.3)", padding: "clamp(28px,5vw,48px) clamp(24px,5vw,52px)", maxWidth: 480, width: "92vw", boxShadow: "0 20px 60px rgba(0,0,0,0.35)" }}
+              initial={{ scale: 0.85, y: 24, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} transition={{ type: "spring", damping: 20 }}>
+              <div className="text-5xl mb-3">🌊</div>
+              <div className="font-black text-[#0c4a6e] mb-3" style={{ fontSize: "clamp(22px,4vw,32px)" }}>
+                יריד הקיץ הסתיים
+              </div>
+              <div className="font-semibold text-[#0369a1] leading-relaxed mb-6" style={{ fontSize: "clamp(15px,2.6vw,19px)" }}>
+                המתנות כבר לא נשלחות, אבל אתם עדיין מוזמנים ליהנות מהמשחק!<br />
+                ניפגש ביריד הבא 🎣
+              </div>
+              <motion.button onClick={() => setShowFairEndedNotice(false)}
+                className="font-black rounded-full border-0"
+                style={{ background: "linear-gradient(135deg,#38bdf8,#0284c7)", color: "#fff", padding: "clamp(12px,2vw,16px) clamp(36px,6vw,64px)", fontSize: "clamp(16px,2.6vw,22px)", boxShadow: "0 6px 24px rgba(2,132,199,.5)" }}
+                whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.96 }}>
+                בואו נשחק!
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Background */}
       <div className="absolute inset-0" style={{
         backgroundImage: "url('/summerfair/beach.gif')",

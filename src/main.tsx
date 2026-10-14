@@ -5,6 +5,7 @@ import { GiftFairApp } from './App.tsx';
 import AdminPage from './AdminPage.tsx';
 import FairHub from './FairHub.tsx';
 import SummerFairGame from './games/summerfair/SummerFairGame.tsx';
+import B2BFairGame from './games/b2bfair/B2BFairGame.tsx';
 import './index.css';
 import { AuthProvider } from './lib/AuthContext';
 import { Toaster } from '../components/ui/sonner';
@@ -17,6 +18,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/" element={<FairHub />} />
           <Route path="/giftfair" element={<GiftFairApp />} />
           <Route path="/summerfair" element={<SummerFairGame />} />
+          <Route path="/b2bfair" element={<B2BFairGame />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
