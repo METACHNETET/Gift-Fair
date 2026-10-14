@@ -184,7 +184,8 @@ const KEYS_BY_ID = Object.fromEntries(LEVEL.keys.map((key) => [key.id, key]))
 const DOORS_BY_ID = Object.fromEntries(LEVEL.doors.map((door) => [door.id, door]))
 
 function createElevatorState() {
-  return { y: LEVEL.elevator.bottomY, direction: -1, pauseUntil: 0 }
+  // מתחילה בקרקע (תחנה 0) ונוסעת לתחנה הבאה למעלה
+  return { y: LEVEL.elevator.stops[0], stopIndex: 1, direction: 1, pauseUntil: 0 }
 }
 
 function playGiftBoxSound(audioContext) {
@@ -430,20 +431,22 @@ function App() {
         }
       }
 
-      // מעלית: נוסעת בין הקומות עם עצירה בכל קצה, ומסיעה את מי שעומד עליה
+      // מעלית: עולה ויורדת בין כל הקומות, עוצרת בכל קומה, ומסיעה את מי שעומד עליה
       const elevatorConfig = LEVEL.elevator
       const elevator = g.elevator
       if (now >= elevator.pauseUntil) {
         const previousElevatorY = elevator.y
-        elevator.y += elevator.direction * elevatorConfig.speed * dt
-        if (elevator.y <= elevatorConfig.topY) {
-          elevator.y = elevatorConfig.topY
-          elevator.direction = 1
+        const targetY = elevatorConfig.stops[elevator.stopIndex]
+        const step = elevatorConfig.speed * dt
+        if (Math.abs(targetY - elevator.y) <= step) {
+          elevator.y = targetY
           elevator.pauseUntil = now + elevatorConfig.pauseMs
-        } else if (elevator.y >= elevatorConfig.bottomY) {
-          elevator.y = elevatorConfig.bottomY
-          elevator.direction = -1
-          elevator.pauseUntil = now + elevatorConfig.pauseMs
+          const lastStop = elevatorConfig.stops.length - 1
+          if (elevator.stopIndex === lastStop) elevator.direction = -1
+          else if (elevator.stopIndex === 0) elevator.direction = 1
+          elevator.stopIndex += elevator.direction
+        } else {
+          elevator.y += Math.sign(targetY - elevator.y) * step
         }
         if (g.groundKind === 'elevator') g.y += elevator.y - previousElevatorY
       }

@@ -146,13 +146,14 @@ function buildLevel() {
     shelf(0.8, FLOOR_1_Y, FLOOR_2_Y)
   )
 
-  // --- מעלית זכוכית שנוסעת בין הקומה האמצעית לעליונה ---
+  // --- מעלית זכוכית שעולה ויורדת בין כל הקומות, עם עצירה בכל קומה ---
   const elevator = {
     x: Math.round(IMAGE_RENDER_WIDTH * 0.92),
     width: 96,
     height: 14,
     topY: FLOOR_1_Y,
-    bottomY: FLOOR_2_Y,
+    bottomY: GROUND_Y,
+    stops: [GROUND_Y, FLOOR_2_Y, FLOOR_1_Y], // מלמטה למעלה
     speed: 110, // px/s
     pauseMs: 900, // עצירה בכל קומה כדי שיהיה קל לעלות/לרדת
   }
@@ -163,13 +164,13 @@ function buildLevel() {
   const doors = [
     {
       id: 'door-ground',
-      x: Math.round(IMAGE_RENDER_WIDTH * 0.965) - DOOR_WIDTH / 2,
+      x: Math.round(IMAGE_RENDER_WIDTH * 0.105) - DOOR_WIDTH / 2,
       y: GROUND_Y - DOOR_HEIGHT,
       targetId: 'door-top',
     },
     {
       id: 'door-top',
-      x: Math.round(IMAGE_RENDER_WIDTH * 0.01),
+      x: Math.round(IMAGE_RENDER_WIDTH * 0.86) - DOOR_WIDTH / 2,
       y: FLOOR_1_Y - DOOR_HEIGHT,
       targetId: 'door-ground',
     },
