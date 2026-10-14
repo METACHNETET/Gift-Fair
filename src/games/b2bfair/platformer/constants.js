@@ -21,7 +21,7 @@ export const PLAYER_HEIGHT = 56
 // --- משחק ---
 export const ROUND_SECONDS = 83
 export const KEYS_REQUIRED_FOR_FREE_ENTRY = 4
-export const TOTAL_KEYS = 30 // = מספר העסקים/הקופסאות
+export const TOTAL_KEYS = 30
 
 // --- רקע: ספרייה רחבה עם שלוש קומות ---
 import libraryBackground from './assets/magnific__2d-sideview-platform-game-level-background-crossse__76353.png'
@@ -45,23 +45,13 @@ const FLOOR_2_Y = Math.round(IMAGE_RENDER_HEIGHT * FLOOR_2_RATIO)
 export const GROUND_Y = Math.round(IMAGE_RENDER_HEIGHT * 0.96)
 
 // Gift details can be connected to the fair spreadsheet when its data is available.
-// רשימת העסקים והמתנות. כרגע נתוני דוגמה — יוחלפו ברשימת העסקים של היריד.
-// logoUrl: כתובת ללוגו (למשל '/logos/name.png'). בלי לוגו מוצג עיגול צבעוני עם ראשי תיבות.
 export const COURSES = Array.from({ length: 30 }, (_, i) => ({
   id: `gift-${i + 1}`,
-  businessName: `עסק לדוגמה ${i + 1}`,
-  giftName: `מתנה מספר ${i + 1}`,
+  businessName: 'מתנת היריד',
+  giftName: `מתנה ${i + 1}`,
   logoUrl: null,
-  color: `hsl(${(i * 47) % 360} 65% 45%)`,
+  videoUrl: null,
 }))
-
-// --- קופסאות מתנה ובועות ---
-export const GIFT_BOX_SIZE = 52
-export const GIFT_BOX_AIR_GAP = 130 // המרחק מהרצפה לתחתית קופסה באוויר
-export const BUBBLE_RADIUS = 36
-export const BUBBLE_HOVER_HEIGHT = 150 // גובה הריחוף של הבועה מעל הרצפה
-export const BUBBLE_LIFETIME_MS = 5000 // אחרי הזמן הזה הבועה חוזרת לקופסה
-export const BUBBLE_DRIFT = 46 // כמה הבועה מתנדנדת לצדדים (px)
 
 // --- בניית הרמה: שלוש קומות המחוברות בסולמות ---
 function buildLevel() {
@@ -87,41 +77,58 @@ function buildLevel() {
     },
   ]
 
-  // --- קופסאות מתנה: כל עסק מקבל קופסה עם הלוגו שלו ---
-  // G = על הרצפה (קופצים על המכסה), A = באוויר (מכה בראש מלמטה).
-  // המיקומים נבחרו כך שלא יחסמו סולמות/מדפים/מעלית/דלתות, וקופסאות הרצפה
-  // לא נמצאות במסלול של האויבים.
-  const boxLayout = [
+  const floorSlots = [
     {
       floorY: FLOOR_1_Y,
-      slots: [[0.04, 'G'], [0.12, 'A'], [0.2, 'G'], [0.28, 'A'], [0.36, 'G'],
-        [0.44, 'A'], [0.5, 'G'], [0.63, 'A'], [0.69, 'G'], [0.78, 'A']],
+      xPositions: [0.06, 0.15, 0.24, 0.33, 0.42, 0.51, 0.6, 0.69, 0.78, 0.88],
+      jumps: [0, 42, 0, 64, 28, 0, 52, 0, 36, 0],
     },
     {
       floorY: FLOOR_2_Y,
-      slots: [[0.05, 'G'], [0.12, 'A'], [0.3, 'G'], [0.36, 'A'], [0.45, 'A'],
-        [0.51, 'A'], [0.62, 'G'], [0.7, 'A'], [0.76, 'G'], [0.88, 'G']],
+      xPositions: [0.05, 0.14, 0.23, 0.32, 0.41, 0.5, 0.59, 0.68, 0.77, 0.88],
+      jumps: [0, 56, 24, 0, 72, 0, 40, 0, 60, 0],
     },
     {
       floorY: GROUND_Y,
-      slots: [[0.04, 'G'], [0.15, 'A'], [0.28, 'A'], [0.36, 'A'], [0.45, 'G'],
-        [0.53, 'A'], [0.6, 'G'], [0.68, 'A'], [0.76, 'A'], [0.86, 'G']],
+      xPositions: [0.05, 0.14, 0.23, 0.32, 0.41, 0.5, 0.59, 0.68, 0.77, 0.88],
+      jumps: [0, 36, 0, 68, 0, 48, 0, 72, 28, 0],
     },
   ]
-  const giftBoxes = boxLayout.flatMap(({ floorY, slots }) =>
-    slots.map(([xRatio, placement]) => ({ floorY, xRatio, placement }))
-  ).map(({ floorY, xRatio, placement }, i) => ({
-    id: `box-${COURSES[i].id}`,
-    gift: COURSES[i],
-    placement: placement === 'G' ? 'ground' : 'air',
-    floorY,
-    x: Math.round(IMAGE_RENDER_WIDTH * xRatio) - GIFT_BOX_SIZE / 2,
-    y:
-      placement === 'G'
-        ? floorY - GIFT_BOX_SIZE
-        : floorY - GIFT_BOX_AIR_GAP - GIFT_BOX_SIZE,
+
+  // Ten keys per floor, with raised keys that require a jump to collect.
+  const keySlots = [
+    ...floorSlots.flatMap(({ floorY, xPositions, jumps }) =>
+      xPositions.map((x, index) => ({
+        x,
+        y: floorY - 44 - jumps[index],
+      }))
+    ),
+  ]
+
+  // --- קופסאות מתנה (כמו קוביות "?" במריו): מכה מלמטה מקפיצה מפתח ---
+  // כל קופסה מחביאה את המפתח של המשבצת שמתחתיה (אינדקס ב-keySlots),
+  // כך שסך המפתחות נשאר TOTAL_KEYS.
+  const GIFT_BOX_SIZE = 40
+  const GIFT_BOX_GAP_ABOVE_FLOOR = 130 // המרחק מהרצפה לתחתית הקופסה
+  const giftBoxSlotIndexes = [2, 7, 13, 17, 20, 26]
+  const floorYBySlotIndex = (index) => floorSlots[Math.floor(index / 10)].floorY
+  const giftBoxes = giftBoxSlotIndexes.map((slotIndex) => ({
+    id: `box-${slotIndex}`,
+    keyId: `key-${COURSES[slotIndex].id}`,
+    x: Math.round(IMAGE_RENDER_WIDTH * keySlots[slotIndex].x) - GIFT_BOX_SIZE / 2,
+    y: floorYBySlotIndex(slotIndex) - GIFT_BOX_GAP_ABOVE_FLOOR - GIFT_BOX_SIZE,
     width: GIFT_BOX_SIZE,
     height: GIFT_BOX_SIZE,
+  }))
+  const keyIdsInBoxes = new Set(giftBoxes.map((box) => box.keyId))
+
+  const keys = keySlots.map((slot, i) => ({
+    id: `key-${COURSES[i].id}`,
+    courseId: COURSES[i].id,
+    gift: COURSES[i],
+    x: Math.round(IMAGE_RENDER_WIDTH * slot.x) - 16,
+    y: slot.y - 44,
+    inBox: keyIdsInBoxes.has(`key-${COURSES[i].id}`),
   }))
 
   // --- מדפים צפים בין הקומות: עולים עליהם מלמטה, ⬇ מפיל מהם ---
@@ -169,7 +176,7 @@ function buildLevel() {
     },
   ].map((door) => ({ ...door, width: DOOR_WIDTH, height: DOOR_HEIGHT }))
 
-  return { platforms, ladders, giftBoxes, elevator, doors }
+  return { platforms, ladders, keys, giftBoxes, elevator, doors }
 }
 
 export const LEVEL = buildLevel()
