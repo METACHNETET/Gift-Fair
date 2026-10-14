@@ -23,10 +23,7 @@ import {
   IMAGE_RENDER_HEIGHT,
   COURSES,
   LEVEL,
-  DECIDE_MS,
-  CLAIMED_MS,
-  FADE_MS,
-  DECIDE_GUARD_MS,
+  FLOORS_VISIBLE_PER_SCREEN,
 } from './constants'
 import robotSpriteSheet from './assets/robot-sprite-transparent.png'
 import robotClimbSpriteSheet from './assets/robot-sprite-climb-no-ladder.png'
@@ -203,61 +200,11 @@ function GiftLogo({ gift }) {
   )
 }
 
-function playFadeSound(audioContext) {
-  if (audioContext?.state !== 'running') return
-  playLadderNotes(audioContext, [659.25, 523.25, 392], audioContext.currentTime, 0.11)
-}
-
 function playRevealSound(audioContext) {
   if (audioContext?.state !== 'running') return
   const t = audioContext.currentTime
   playLadderNotes(audioContext, [783.99, 987.77, 1174.66, 1567.98], t, 0.07)
   playLadderNotes(audioContext, [1046.5, 1318.51, 1567.98, 2093], t + 0.32, 0.05)
-}
-
-// בועת הבמה: המתנה של העסק במרכז המסך.
-// deciding — טבעת זמן מתרוקנת וכפתור "רוצה!"; claimed — עפה לסל; faded — מתפוגגת.
-function GiftStage({ stage, onWant }) {
-  const { gift, status } = stage
-  return (
-    <div className={`gift-stage gift-stage--${status}`} role="dialog" aria-live="polite">
-      <div className="gift-stage__bubble" style={{ '--brand': gift.color }}>
-        {status === 'deciding' && (
-          <svg className="gift-stage__timer" viewBox="0 0 100 100" aria-hidden="true">
-            <circle cx="50" cy="50" r="48" style={{ animationDuration: `${DECIDE_MS}ms` }} />
-          </svg>
-        )}
-        {status === 'claimed' && (
-          <div className="gift-stage__confetti" aria-hidden="true">
-            {Array.from({ length: 22 }, (_, i) => (
-              <span
-                key={i}
-                style={{
-                  '--angle': `${(i / 22) * 360}deg`,
-                  '--distance': `${120 + (i % 4) * 28}px`,
-                  background: i % 3 === 0 ? gift.color : i % 3 === 1 ? '#f1d896' : '#ffffff',
-                }}
-              />
-            ))}
-          </div>
-        )}
-        <span className="gift-stage__logo">
-          <GiftLogo gift={gift} />
-        </span>
-        <p className="gift-stage__business">{gift.businessName}</p>
-        <h2 className="gift-stage__gift">{gift.giftName}</h2>
-        {gift.giftDescription && <p className="gift-stage__desc">{gift.giftDescription}</p>}
-        {status === 'deciding' && (
-          <button type="button" className="gift-stage__want" onPointerDown={onWant}>
-            🎁 רוצה!
-            <small>רווח / הקשה</small>
-          </button>
-        )}
-        {status === 'claimed' && <p className="gift-stage__result">נוסף לסל! 🎉</p>}
-        {status === 'faded' && <p className="gift-stage__result gift-stage__result--faded">התפוגג... 💨</p>}
-      </div>
-    </div>
-  )
 }
 
 function createElevatorState() {
@@ -302,10 +249,6 @@ function App() {
   const [collectedIds, setCollectedIds] = useState(() => new Set())
   const [leadSubmitted, setLeadSubmitted] = useState(false)
   const [giftPreview, setGiftPreview] = useState(null)
-  // בועת הבמה הפתוחה כרגע: { gift, taps, opened } או null
-  const [giftStage, setGiftStage] = useState(null)
-  const giftStageRef = useRef(null)
-  const stageTimerRef = useRef(null)
   const [claimedGiftIds, setClaimedGiftIds] = useState(() => new Set())
 
   const viewportRef = useRef(null)
@@ -357,6 +300,7 @@ function App() {
     rafId: null,
     lastTime: null,
     nearbyKeyId: null,
+    zoom: 1,
   })
 
   // גובה/רוחב המסך בפועל — נשמר גם ב-state כדי שגודל שכבת העולם יתעדכן בזמן אמת
@@ -369,13 +313,6 @@ function App() {
   // --- קלט מקלדת ---
   useEffect(() => {
     function handleKeyDown(e) {
-      if (giftStageRef.current) {
-        if (['Space', 'ArrowUp', 'Enter', 'KeyW'].includes(e.code)) {
-          e.preventDefault()
-          if (!e.repeat) wantGiftRef.current()
-        }
-        return
-      }
       game.current.keysDown.add(e.code)
       // לחיצה קצרה מאוד יכולה להתחיל ולהיגמר בין שני פריימים — שומרים אותה
       if (!e.repeat && (e.code === 'ArrowDown' || e.code === 'KeyS')) {
@@ -416,8 +353,13 @@ function App() {
   // חלק העליון של העולם במקום את הדמות שכבר עומדת למטה על הרצפה
   const syncCameraToDOM = useCallback(() => {
     const g = game.current
-    const vw = g.viewportWidth
-    const vh = g.viewportHeight
+    // זום דינמי: תמיד מציג בדיוק קומה אחת (שליש מגובה העולם) בגובה המסך,
+    // יחסי לגודל המסך בפועל. "חלון הצפייה" בתוך העולם הוא גודל המסך חלקי הזום.
+    const floorHeight = (WORLD_HEIGHT / 3) * FLOORS_VISIBLE_PER_SCREEN
+    const zoom = g.viewportHeight / floorHeight
+    g.zoom = zoom
+    const vw = g.viewportWidth / zoom
+    const vh = g.viewportHeight / zoom
     const worldHeight = Math.max(WORLD_HEIGHT, vh)
 
     let cameraX
@@ -434,13 +376,13 @@ function App() {
     g.cameraY = cameraY
 
     if (worldLayerRef.current) {
-      worldLayerRef.current.style.transform = `translate3d(${-cameraX}px, ${-cameraY}px, 0)`
+      worldLayerRef.current.style.transform = `scale(${zoom}) translate3d(${-cameraX}px, ${-cameraY}px, 0)`
     }
     if (coordinateRulerRef.current) {
       coordinateRulerRef.current.style.transform = `translateY(${-cameraY}px)`
     }
     if (playerRef.current) {
-      playerRef.current.style.transform = `translate3d(${g.x + PLAYER_WIDTH / 2 - 56}px, ${g.y - 128}px, 0) scaleX(${g.facing})`
+      playerRef.current.style.transform = `translate3d(${g.x + PLAYER_WIDTH / 2 - 28}px, ${g.y - 64}px, 0) scaleX(${g.facing})`
       playerRef.current.style.backgroundImage = `url(${g.climbing ? robotClimbSpriteSheet : robotSpriteSheet})`
       playerRef.current.classList.toggle('player--walking', g.vx !== 0 && !g.climbing)
       playerRef.current.classList.toggle('player--climbing', g.climbing)
@@ -464,67 +406,37 @@ function App() {
     syncCameraToDOM()
   }, [phase, syncCameraToDOM])
 
-  // עוצר את המשחק ופותח את בועת הבמה של העסק. יש DECIDE_MS ללחוץ "רוצה!",
-  // ואם לא — המתנה מתפוגגת והמשחק ממשיך.
-  function openGiftStage(courseId) {
-    const g = game.current
-    g.paused = true
-    g.keysDown.clear()
-    g.vx = 0
-    const gift = COURSES.find((course) => course.id === courseId)
-    showGiftStage({ gift, status: 'deciding', openedAt: performance.now() })
-    playGiftBoxSound(audioContextRef.current)
-    window.clearTimeout(stageTimerRef.current)
-    stageTimerRef.current = window.setTimeout(fadeGiftStage, DECIDE_MS)
+  // קונפטי קצר במקום המפתח — בלי לעצור את המשחק, כדי שיספיקו כמה שיותר
+  function spawnConfetti(x, y, color) {
+    const layer = worldLayerRef.current
+    if (!layer) return
+    const burst = document.createElement('div')
+    burst.className = 'key-confetti'
+    burst.style.left = `${x}px`
+    burst.style.top = `${y}px`
+    for (let i = 0; i < 18; i++) {
+      const piece = document.createElement('span')
+      piece.style.setProperty('--angle', `${(i / 18) * 360}deg`)
+      piece.style.setProperty('--distance', `${70 + (i % 3) * 22}px`)
+      piece.style.background = i % 3 === 0 ? color : i % 3 === 1 ? '#f1d896' : '#ffffff'
+      burst.appendChild(piece)
+    }
+    layer.appendChild(burst)
+    window.setTimeout(() => burst.remove(), 1000)
   }
-
-  function showGiftStage(stage) {
-    giftStageRef.current = stage
-    setGiftStage(stage)
-  }
-
-  function wantGift() {
-    const stage = giftStageRef.current
-    if (!stage || stage.status !== 'deciding') return
-    if (performance.now() - stage.openedAt < DECIDE_GUARD_MS) return
-    setClaimedGiftIds((previous) => new Set(previous).add(stage.gift.id))
-    showGiftStage({ ...stage, status: 'claimed' })
-    playRevealSound(audioContextRef.current)
-    window.clearTimeout(stageTimerRef.current)
-    stageTimerRef.current = window.setTimeout(closeGiftStage, CLAIMED_MS)
-  }
-
-  function fadeGiftStage() {
-    const stage = giftStageRef.current
-    if (!stage || stage.status !== 'deciding') return
-    showGiftStage({ ...stage, status: 'faded' })
-    playFadeSound(audioContextRef.current)
-    stageTimerRef.current = window.setTimeout(closeGiftStage, FADE_MS)
-  }
-
-  function closeGiftStage() {
-    window.clearTimeout(stageTimerRef.current)
-    giftStageRef.current = null
-    setGiftStage(null)
-    const g = game.current
-    g.keysDown.clear()
-    g.lastTime = null
-    g.paused = false
-  }
-  const wantGiftRef = useRef(wantGift)
-  wantGiftRef.current = wantGift
-  // fadeGiftStage/closeGiftStage רצים מתוך setTimeout ומשתמשים רק ב-refs ו-setters,
-  // לכן גרסה ישנה שלהם עדיין עובדת נכון
 
   const collectKey = useCallback((keyId, courseId) => {
     if (game.current.collected.has(keyId)) return
     game.current.collected.add(keyId)
+    const key = KEYS_BY_ID[keyId]
     playKeyPickupSound(audioContextRef.current)
+    playRevealSound(audioContextRef.current)
     const el = keyElementsRef.current[keyId]
     if (el) el.style.display = 'none'
+    spawnConfetti(key.x + 16, key.y + 16, key.gift.color)
     setCollectedIds((prev) => new Set(prev).add(courseId))
+    setClaimedGiftIds((previous) => new Set(previous).add(courseId))
     setGiftPreview(null)
-    openGiftStage(courseId)
   }, [])
 
   // מכה בקופסת מתנה מלמטה: הקופסה קופצת, מפתח עף ממנה למעלה ונאסף
@@ -559,12 +471,6 @@ function App() {
 
     function step(now) {
       const g = game.current
-      if (g.paused) {
-        // בועת הבמה פתוחה — העולם קפוא
-        g.lastTime = now
-        g.rafId = requestAnimationFrame(step)
-        return
-      }
       if (g.lastTime == null) g.lastTime = now
       const dt = Math.min((now - g.lastTime) / 1000, 0.05)
       g.lastTime = now
@@ -985,7 +891,6 @@ function App() {
   useEffect(() => {
     if (phase !== 'playing') return
     const interval = setInterval(() => {
-      if (game.current.paused) return
       setTimeLeft((t) => {
         if (t <= 1) {
           clearInterval(interval)
@@ -1038,10 +943,6 @@ function App() {
     game.current.jumping = false
     game.current.onGround = false
     game.current.climbing = false
-    game.current.paused = false
-    giftStageRef.current = null
-    setGiftStage(null)
-    window.clearTimeout(stageTimerRef.current)
     game.current.jumpWasDown = false
     game.current.jumpCut = false
     game.current.jumpBufferedAt = -Infinity
@@ -1113,7 +1014,7 @@ function App() {
 
   function handleViewportPointerMove(e) {
     const viewportTop = viewportRef.current?.getBoundingClientRect().top ?? 0
-    const worldY = Math.round(e.clientY - viewportTop + game.current.cameraY)
+    const worldY = Math.round((e.clientY - viewportTop) / game.current.zoom + game.current.cameraY)
     if (coordinateReadoutRef.current) {
       coordinateReadoutRef.current.textContent = `Y: ${worldY} px`
     }
@@ -1165,8 +1066,8 @@ function App() {
           <div
             className="parallax-layer parallax-far"
             style={{
-              transform: `translate3d(${-(game.current.cameraX * 0.4)}px, ${-(
-                game.current.cameraY * 0.4
+              transform: `translate3d(${-(game.current.cameraX * 0.4 * game.current.zoom)}px, ${-(
+                game.current.cameraY * 0.4 * game.current.zoom
               )}px, 0)`,
             }}
           />
@@ -1394,7 +1295,7 @@ function App() {
         </div>
       )}
 
-      {giftPreview && phase === 'playing' && !giftStage && (
+      {giftPreview && phase === 'playing' && (
         <aside className="gift-preview" aria-live="polite">
           <div className="gift-preview__logo">
             <GiftLogo gift={giftPreview} />
@@ -1402,23 +1303,24 @@ function App() {
           <div className="gift-preview__copy">
             <span>{giftPreview.businessName}</span>
             <strong>{giftPreview.giftName}</strong>
+            {giftPreview.giftDescription && (
+              <p className="gift-preview__desc">{giftPreview.giftDescription}</p>
+            )}
           </div>
         </aside>
       )}
 
-      {giftStage && phase === 'playing' && (
-        <GiftStage stage={giftStage} onWant={() => wantGiftRef.current()} />
-      )}
-
       {phase === 'ended' && (
         <div className="scene scene--center">
-          <h1>הזמן נגמר!</h1>
-          <p className="subtitle">נאספו {keysCollectedCount} מתוך {COURSES.length} מתנות</p>
+          <h1>העסק שלכם הולך לקפוץ</h1>
+          <p className="subtitle">
+            בחרתם להיכנס לחדרים של {giftsClaimedCount} מתוך {COURSES.length} האוטוריטות שבבית הספר לעסקים שלנו
+          </p>
 
           <div className="gift-selection" dir="rtl">
-            <h2>המתנות שבחרתם 🎁</h2>
+            <h2>רוצים להיכנס לחדרים נוספים?</h2>
             <p className="gift-selection__count">
-              {giftsClaimedCount} עסקים נבחרו · אפשר להוסיף או להוריד לפני השליחה
+              בכל חדר מחכה לך הפתעה שתעזור לך לקפוץ קפיצה עיסקית
             </p>
             <button
               type="button"
@@ -1465,7 +1367,7 @@ function App() {
                   </span>
                   <span className="gift-selection__text">
                     <strong>{gift.giftName}</strong>
-                    <small>{gift.businessName} · אפשר להוסיף גם בלי לאסוף במשחק</small>
+                    <small>{gift.businessName}</small>
                   </span>
                   <span className="gift-selection__status">
                     {claimedGiftIds.has(gift.id) ? 'מצטרפים ✓' : 'להצטרפות'}
@@ -1490,7 +1392,14 @@ function App() {
             <form className="lead-form" onSubmit={handleLeadSubmit}>
               <input type="text" placeholder="שם מלא" required />
               <input type="email" placeholder="אימייל" required />
-              <input type="tel" placeholder="טלפון" />
+              <label className="consent-check">
+                <input type="checkbox" required />
+                <span>
+                  אני מאשר.ת קבלת דיוורים למייל מדבורי זילברשטיין ויעל פיינגולד מנהלות היריד ומבעלות
+                  העסקים שביריד (ברור שבמייל. אחרת איך ישלחו לי את כל הטוב הזה....:) אם ארצה אוכל לעשות
+                  הסרה 😉
+                </span>
+              </label>
               <button type="submit" className="primary-btn" disabled={giftsClaimedCount === 0}>
                 {giftsClaimedCount === 0 ? 'סמנו לפחות עסק אחד' : 'קבלו את המתנות שבחרתם'}
               </button>

@@ -16,8 +16,10 @@ export const JUMP_BUFFER_MS = 130
 // ריבאונד אחרי דריכה על אויב: רגיל / כשמחזיקים את מקש הקפיצה
 export const STOMP_BOUNCE = 0.62
 export const STOMP_BOUNCE_HELD = 0.95
-export const PLAYER_WIDTH = 40
-export const PLAYER_HEIGHT = 56
+// הרובוט קטן ב-50% מהמקור (היה 40x56) — הקפיצה (GRAVITY/JUMP_VELOCITY למעלה)
+// נשארת בדיוק אותו דבר, אז היא מרגישה חזקה יותר ביחס לגודל הדמות הקטן יותר
+export const PLAYER_WIDTH = 20
+export const PLAYER_HEIGHT = 28
 
 // --- משחק ---
 export const ROUND_SECONDS = 83
@@ -38,6 +40,11 @@ export const IMAGE_RENDER_HEIGHT = Math.round(IMAGE_RENDER_WIDTH / 2)
 export const WORLD_WIDTH = IMAGE_RENDER_WIDTH
 export const WORLD_HEIGHT = IMAGE_RENDER_HEIGHT
 
+// הזום מחושב כך שבגובה המסך רואים תמיד בדיוק קומה אחת (שליש מגובה העולם) —
+// יחסי לגודל המסך בפועל, אותו עולם בדיוק, רק מוצג גדול יותר. מגלים אזורים
+// נוספים תוך כדי תנועה כי בכל רגע רואים רק חלק מהעולם.
+export const FLOORS_VISIBLE_PER_SCREEN = 1
+
 // --- גבהי הרצפות לפי פסי הקומות המצוירים ברקע ---
 const FLOOR_1_RATIO = 210 / 587
 const FLOOR_2_RATIO = 382 / 587
@@ -48,16 +55,6 @@ export const GROUND_Y = Math.round(IMAGE_RENDER_HEIGHT * 0.96)
 // Gift details can be connected to the fair spreadsheet when its data is available.
 // רשימת העסקים והמתנות של היריד (מקובץ שנוצר מגיליון התגובות של העסקים)
 export const COURSES = BUSINESSES
-
-// --- בועת הבמה: אחרי תפיסת מפתח ---
-// כמה זמן יש ללחוץ "רוצה!" לפני שהמתנה מתפוגגת
-export const DECIDE_MS = 4000
-// כמה זמן מוצגת חגיגת "נוסף לסל" לפני שהמשחק ממשיך
-export const CLAIMED_MS = 1100
-// משך אנימציית ההתפוגגות
-export const FADE_MS = 900
-// הגנה מלחיצה בטעות: לחיצות ברגע הראשון אחרי פתיחת הבועה לא נספרות
-export const DECIDE_GUARD_MS = 300
 
 // --- בניית הרמה: שלוש קומות המחוברות בסולמות ---
 function buildLevel() {
@@ -83,20 +80,22 @@ function buildLevel() {
     },
   ]
 
+  // xPositions מוזזות קצת במקומות שבהם הן היו נופלות ממש על סולם (0.56 בין
+  // קומה 1 לקומה 2, 0.21 בין קומה 2 לקרקע) — כדי שלא יהיה מפתח/עסק על המדרגות
   const floorSlots = [
     {
       floorY: FLOOR_1_Y,
-      xPositions: [0.06, 0.15, 0.24, 0.33, 0.42, 0.51, 0.6, 0.69, 0.78, 0.88],
+      xPositions: [0.06, 0.15, 0.24, 0.33, 0.42, 0.51, 0.64, 0.69, 0.78, 0.88],
       jumps: [0, 42, 0, 64, 28, 0, 52, 0, 36, 0],
     },
     {
       floorY: FLOOR_2_Y,
-      xPositions: [0.05, 0.14, 0.23, 0.32, 0.41, 0.5, 0.59, 0.68, 0.77, 0.88],
+      xPositions: [0.05, 0.14, 0.28, 0.32, 0.41, 0.5, 0.64, 0.68, 0.77, 0.88],
       jumps: [0, 56, 24, 0, 72, 0, 40, 0, 60, 0],
     },
     {
       floorY: GROUND_Y,
-      xPositions: [0.05, 0.14, 0.23, 0.32, 0.41, 0.5, 0.59, 0.68, 0.77, 0.88],
+      xPositions: [0.05, 0.14, 0.28, 0.32, 0.41, 0.5, 0.59, 0.68, 0.77, 0.88],
       jumps: [0, 36, 0, 68, 0, 48, 0, 72, 28, 0],
     },
   ]
