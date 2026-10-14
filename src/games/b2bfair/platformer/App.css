@@ -1181,3 +1181,35 @@
 .b2b-platformer .gift-stage__business {
   max-width: 74%;
 }
+
+/* לוגואים רחבים (רוב הלוגואים הם טקסט) — תגית מלבנית מעוגלת במקום עיגול */
+.b2b-platformer .key-item__logo {
+  inset: -3px -16px;
+  padding: 2px 3px;
+  border-radius: 8px;
+}
+
+.b2b-platformer .key-item__logo .gift-logo-fallback {
+  border-radius: 6px;
+}
+
+.b2b-platformer .key-item__key {
+  right: -24px;
+  bottom: -12px;
+}
+
+.b2b-platformer .gift-stage__logo {
+  width: 210px;
+  height: 112px;
+  padding: 10px 14px;
+  border-radius: 18px;
+}
+
+.b2b-platformer .gift-stage__logo .gift-logo-fallback {
+  border-radius: 12px;
+}
+
+.b2b-platformer .gift-preview__logo,
+.b2b-platformer .gift-selection__logo {
+  padding: 2px;
+}
