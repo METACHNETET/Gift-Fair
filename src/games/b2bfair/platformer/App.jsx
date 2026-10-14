@@ -3,6 +3,11 @@ import './App.css'
 import {
   GRAVITY,
   JUMP_VELOCITY,
+  JUMP_CUT_MULTIPLIER,
+  COYOTE_TIME_MS,
+  JUMP_BUFFER_MS,
+  STOMP_BOUNCE,
+  STOMP_BOUNCE_HELD,
   MOVE_SPEED,
   CLIMB_SPEED,
   PLAYER_WIDTH,
@@ -222,6 +227,10 @@ function App() {
     jumping: false,
     onGround: false,
     climbing: false,
+    jumpWasDown: false,
+    jumpCut: false,
+    jumpBufferedAt: -Infinity,
+    lastGroundedAt: -Infinity,
     facing: 1,
     cameraX: 0,
     cameraY: 0,
@@ -474,11 +483,25 @@ function App() {
       }
       g.wasClimbing = g.climbing
 
-      // קפיצה (לא זמינה בזמן טיפוס)
-      if (!g.climbing && jumpPressed && g.onGround) {
+      // קפיצה (לא זמינה בזמן טיפוס). רק לחיצה חדשה נספרת, ונזכרת לזמן קצר
+      // כדי שלחיצה רגע לפני הנחיתה תתבצע בנחיתה (jump buffer).
+      if (jumpPressed && !g.jumpWasDown) g.jumpBufferedAt = now
+      g.jumpWasDown = jumpPressed
+
+      const canJump = g.onGround || now - g.lastGroundedAt <= COYOTE_TIME_MS
+      if (!g.climbing && canJump && now - g.jumpBufferedAt <= JUMP_BUFFER_MS) {
         g.vy = -JUMP_VELOCITY
         g.onGround = false
         g.jumping = true
+        g.jumpCut = false
+        g.jumpBufferedAt = -Infinity
+        g.lastGroundedAt = -Infinity
+      }
+
+      // קפיצה בגובה משתנה: עזיבת המקש בזמן עלייה מקצרת את הקפיצה
+      if (g.jumping && !g.jumpCut && !jumpPressed && g.vy < 0) {
+        g.vy *= JUMP_CUT_MULTIPLIER
+        g.jumpCut = true
       }
 
       // גרביטציה (לא פועלת בזמן טיפוס על סולם)
@@ -538,6 +561,7 @@ function App() {
       }
 
       g.y = nextY
+      if (g.onGround) g.lastGroundedAt = now
 
       for (const enemy of g.enemies) {
         if (!enemy.alive) continue
@@ -563,8 +587,12 @@ function App() {
             }, 360)
           }
           g.y = enemy.y - PLAYER_HEIGHT
-          g.vy = -JUMP_VELOCITY * 0.62
+          // ריבאונד: החזקת מקש הקפיצה מעיפה גבוה יותר, ועזיבה באמצע מקצרת
+          g.vy = -JUMP_VELOCITY * (jumpPressed ? STOMP_BOUNCE_HELD : STOMP_BOUNCE)
+          g.jumping = true
+          g.jumpCut = !jumpPressed
           g.onGround = false
+          g.lastGroundedAt = -Infinity
           continue
         }
 
@@ -689,6 +717,10 @@ function App() {
     game.current.jumping = false
     game.current.onGround = false
     game.current.climbing = false
+    game.current.jumpWasDown = false
+    game.current.jumpCut = false
+    game.current.jumpBufferedAt = -Infinity
+    game.current.lastGroundedAt = -Infinity
     game.current.facing = 1
     game.current.cameraX = 0
     game.current.lastFootstepAt = 0

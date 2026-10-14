@@ -5,6 +5,16 @@ export const GRAVITY = 2200 // px/s^2
 export const JUMP_VELOCITY = 960 // px/s
 export const MOVE_SPEED = 440 // px/s
 export const CLIMB_SPEED = 420 // px/s, מהירות טיפוס על סולם/מדרגות
+// --- תחושת קפיצה בסגנון מריו ---
+// עזיבת מקש הקפיצה בזמן עלייה חותכת את המהירות — לחיצה קצרה = קפיצה נמוכה
+export const JUMP_CUT_MULTIPLIER = 0.45
+// אפשר עדיין לקפוץ זמן קצר אחרי שירדת מקצה הרצפה
+export const COYOTE_TIME_MS = 100
+// לחיצה על קפיצה רגע לפני הנחיתה נזכרת ומתבצעת בנחיתה
+export const JUMP_BUFFER_MS = 130
+// ריבאונד אחרי דריכה על אויב: רגיל / כשמחזיקים את מקש הקפיצה
+export const STOMP_BOUNCE = 0.62
+export const STOMP_BOUNCE_HELD = 0.95
 export const PLAYER_WIDTH = 40
 export const PLAYER_HEIGHT = 56
 
