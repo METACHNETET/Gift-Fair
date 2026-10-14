@@ -732,3 +732,166 @@
     display: none;
   }
 }
+
+/* --- אלמנטים בשלב: מדפים, קופסאות מתנה, מעלית ודלתות סודיות --- */
+.b2b-platformer .platform--shelf {
+  background: linear-gradient(180deg, #8a5a32 0%, #5c3a1f 70%, #3d2512 100%);
+  border-top: 3px solid #e7c06a;
+  border-radius: 3px;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.45), 0 0 10px rgba(231, 192, 106, 0.25);
+  z-index: 1;
+}
+
+.b2b-platformer .gift-box {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #f4c95d 0%, #d99a2b 100%);
+  border: 2px solid #fff1c1;
+  box-shadow: 0 0 14px rgba(244, 201, 93, 0.7), inset 0 -4px 0 rgba(0, 0, 0, 0.18);
+  z-index: 2;
+  animation: gift-box-glow 1.4s ease-in-out infinite;
+}
+
+.b2b-platformer .gift-box__icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.b2b-platformer .gift-box--opened {
+  background: linear-gradient(135deg, #6b5a3e 0%, #4a3d29 100%);
+  border-color: #8a7a5c;
+  box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.25);
+  animation: none;
+}
+
+.b2b-platformer .gift-box--opened .gift-box__icon {
+  opacity: 0;
+}
+
+.b2b-platformer .gift-box--bump {
+  animation: gift-box-bump 0.18s ease-out;
+}
+
+@keyframes gift-box-glow {
+  0%, 100% { box-shadow: 0 0 10px rgba(244, 201, 93, 0.55), inset 0 -4px 0 rgba(0, 0, 0, 0.18); }
+  50% { box-shadow: 0 0 20px rgba(244, 201, 93, 0.95), inset 0 -4px 0 rgba(0, 0, 0, 0.18); }
+}
+
+@keyframes gift-box-bump {
+  0% { transform: translateY(0); }
+  45% { transform: translateY(-12px); }
+  100% { transform: translateY(0); }
+}
+
+.b2b-platformer .key-pop {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  pointer-events: none;
+  z-index: 7;
+  filter: drop-shadow(0 0 10px rgba(242, 185, 75, 0.95));
+  animation: key-pop 0.7s ease-out forwards;
+}
+
+@keyframes key-pop {
+  0% { transform: translateY(0) scale(0.6); opacity: 1; }
+  40% { transform: translateY(-56px) scale(1.25); opacity: 1; }
+  100% { transform: translateY(-80px) scale(1); opacity: 0; }
+}
+
+.b2b-platformer .elevator-shaft {
+  position: absolute;
+  border-inline: 2px solid rgba(231, 192, 106, 0.35);
+  background: linear-gradient(90deg, rgba(160, 200, 230, 0.06), rgba(160, 200, 230, 0.14), rgba(160, 200, 230, 0.06));
+  pointer-events: none;
+  z-index: 0;
+}
+
+.b2b-platformer .elevator {
+  position: absolute;
+  background: linear-gradient(180deg, #f1d896 0%, #b8862f 100%);
+  border-radius: 3px;
+  box-shadow: 0 0 14px rgba(241, 216, 150, 0.6);
+  z-index: 1;
+  will-change: transform;
+}
+
+.b2b-platformer .elevator::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 100%;
+  height: 70px;
+  border: 2px solid rgba(241, 216, 150, 0.45);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: rgba(170, 210, 240, 0.12);
+}
+
+.b2b-platformer .secret-door {
+  position: absolute;
+  border-radius: 26px 26px 2px 2px;
+  background: linear-gradient(180deg, #4b2a14 0%, #2c180b 100%);
+  border: 3px solid #d9b25c;
+  box-shadow: 0 0 12px rgba(217, 178, 92, 0.45), inset 0 0 18px rgba(0, 0, 0, 0.6);
+  z-index: 1;
+}
+
+.b2b-platformer .secret-door::after {
+  content: '';
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f1d896;
+}
+
+.b2b-platformer .secret-door__hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(13, 10, 18, 0.8);
+  color: #f1d896;
+  font-size: 15px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+.b2b-platformer .secret-door--near .secret-door__hint {
+  opacity: 1;
+  animation: door-hint-bob 0.9s ease-in-out infinite;
+}
+
+.b2b-platformer .game-viewport--door-flash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #000;
+  pointer-events: none;
+  z-index: 50;
+  animation: door-flash 0.45s ease-out forwards;
+}
+
+@keyframes door-flash {
+  0% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
+@keyframes door-hint-bob {
+  0%, 100% { transform: translate(-50%, 0); }
+  50% { transform: translate(-50%, -6px); }
+}

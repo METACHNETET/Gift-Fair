@@ -178,6 +178,25 @@ const ENEMY_DEFINITIONS = [
   },
 ]
 
+// קופסאות המתנה מוצקות מכל הכיוונים (גם אחרי שנפתחו, כמו במריו)
+const GIFT_BOX_SOLIDS = LEVEL.giftBoxes.map((box) => ({ ...box, kind: 'box' }))
+const KEYS_BY_ID = Object.fromEntries(LEVEL.keys.map((key) => [key.id, key]))
+const DOORS_BY_ID = Object.fromEntries(LEVEL.doors.map((door) => [door.id, door]))
+
+function createElevatorState() {
+  return { y: LEVEL.elevator.bottomY, direction: -1, pauseUntil: 0 }
+}
+
+function playGiftBoxSound(audioContext) {
+  if (audioContext?.state !== 'running') return
+  playLadderNotes(audioContext, [783.99, 1046.5, 1318.51, 1567.98], audioContext.currentTime, 0.06)
+}
+
+function playDoorSound(audioContext) {
+  if (audioContext?.state !== 'running') return
+  playLadderNotes(audioContext, [1046.5, 783.99, 523.25, 392], audioContext.currentTime, 0.07)
+}
+
 function createEnemies() {
   return ENEMY_DEFINITIONS.map((definition) => {
     const startX = Math.round(WORLD_WIDTH * definition.xRatio)
@@ -215,6 +234,9 @@ function App() {
   const enemyElementsRef = useRef({})
   const hudRef = useRef(null)
   const keyElementsRef = useRef({})
+  const giftBoxElementsRef = useRef({})
+  const doorElementsRef = useRef({})
+  const elevatorRef = useRef(null)
   const audioContextRef = useRef(null)
   const footstepIndexRef = useRef(0)
 
@@ -231,6 +253,12 @@ function App() {
     jumpCut: false,
     jumpBufferedAt: -Infinity,
     lastGroundedAt: -Infinity,
+    groundKind: null,
+    dropThroughUntil: 0,
+    downWasDown: false,
+    downTapped: false,
+    elevator: createElevatorState(),
+    openedBoxes: new Set(),
     facing: 1,
     cameraX: 0,
     cameraY: 0,
@@ -260,6 +288,10 @@ function App() {
   useEffect(() => {
     function handleKeyDown(e) {
       game.current.keysDown.add(e.code)
+      // לחיצה קצרה מאוד יכולה להתחיל ולהיגמר בין שני פריימים — שומרים אותה
+      if (!e.repeat && (e.code === 'ArrowDown' || e.code === 'KeyS')) {
+        game.current.downTapped = true
+      }
       if (
         ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(
           e.code
@@ -331,6 +363,9 @@ function App() {
       element.style.transform = `translate3d(${enemy.x - enemy.startX}px, 0, 0)`
       element.classList.toggle('enemy--facing-left', enemy.direction < 0)
     }
+    if (elevatorRef.current) {
+      elevatorRef.current.style.transform = `translate3d(0, ${g.elevator.y - LEVEL.elevator.topY}px, 0)`
+    }
   }, [])
 
   // מציג מיד את הדמות במיקום הנכון (למטה, על הרצפה) ברגע שנכנסים למסך הספירה
@@ -350,6 +385,32 @@ function App() {
     setClaimedGiftIds((previous) => new Set(previous).add(courseId))
   }, [])
 
+  // מכה בקופסת מתנה מלמטה: הקופסה קופצת, מפתח עף ממנה למעלה ונאסף
+  const openGiftBox = useCallback((box) => {
+    const g = game.current
+    const element = giftBoxElementsRef.current[box.id]
+    if (element) {
+      element.classList.remove('gift-box--bump')
+      void element.offsetWidth
+      element.classList.add('gift-box--bump')
+    }
+    if (g.openedBoxes.has(box.id)) return
+    g.openedBoxes.add(box.id)
+    element?.classList.add('gift-box--opened')
+    playGiftBoxSound(audioContextRef.current)
+
+    if (worldLayerRef.current) {
+      const pop = document.createElement('div')
+      pop.className = 'key-pop'
+      pop.textContent = '🔑'
+      pop.style.left = `${box.x + box.width / 2 - 16}px`
+      pop.style.top = `${box.y - 34}px`
+      worldLayerRef.current.appendChild(pop)
+      window.setTimeout(() => pop.remove(), 700)
+    }
+    collectKey(box.keyId, KEYS_BY_ID[box.keyId].courseId)
+  }, [collectKey])
+
   // --- לולאת המשחק ---
   useEffect(() => {
     if (phase !== 'playing') return
@@ -367,6 +428,24 @@ function App() {
           enemy.x = Math.max(enemy.minX, Math.min(enemy.maxX, enemy.x))
           enemy.direction *= -1
         }
+      }
+
+      // מעלית: נוסעת בין הקומות עם עצירה בכל קצה, ומסיעה את מי שעומד עליה
+      const elevatorConfig = LEVEL.elevator
+      const elevator = g.elevator
+      if (now >= elevator.pauseUntil) {
+        const previousElevatorY = elevator.y
+        elevator.y += elevator.direction * elevatorConfig.speed * dt
+        if (elevator.y <= elevatorConfig.topY) {
+          elevator.y = elevatorConfig.topY
+          elevator.direction = 1
+          elevator.pauseUntil = now + elevatorConfig.pauseMs
+        } else if (elevator.y >= elevatorConfig.bottomY) {
+          elevator.y = elevatorConfig.bottomY
+          elevator.direction = -1
+          elevator.pauseUntil = now + elevatorConfig.pauseMs
+        }
+        if (g.groundKind === 'elevator') g.y += elevator.y - previousElevatorY
       }
 
       const left = g.keysDown.has('ArrowLeft') || g.keysDown.has('KeyA')
@@ -504,6 +583,41 @@ function App() {
         g.jumpCut = true
       }
 
+      // ⬇ על מדף: נופלים דרכו. ⬇ מול דלת סודית: עוברים לדלת השנייה.
+      const downJustPressed = (downPressed && !g.downWasDown) || g.downTapped
+      g.downWasDown = downPressed
+      g.downTapped = false
+      if (downJustPressed && g.onGround && !g.climbing) {
+        const door = LEVEL.doors.find(
+          (d) =>
+            playerCenterX > d.x &&
+            playerCenterX < d.x + d.width &&
+            Math.abs(playerFeetY - (d.y + d.height)) < 6
+        )
+        if (door) {
+          const target = DOORS_BY_ID[door.targetId]
+          g.x = target.x + target.width / 2 - PLAYER_WIDTH / 2
+          g.y = target.y + target.height - PLAYER_HEIGHT
+          g.vx = 0
+          g.vy = 0
+          g.groundKind = 'floor'
+          playDoorSound(audioContextRef.current)
+          const viewport = viewportRef.current
+          if (viewport) {
+            viewport.classList.remove('game-viewport--door-flash')
+            void viewport.offsetWidth
+            viewport.classList.add('game-viewport--door-flash')
+          }
+          syncCameraToDOM()
+          g.rafId = requestAnimationFrame(step)
+          return
+        }
+        if (g.groundKind === 'shelf') {
+          g.dropThroughUntil = now + 220
+          g.onGround = false
+        }
+      }
+
       // גרביטציה (לא פועלת בזמן טיפוס על סולם)
       if (!g.climbing) {
         g.vy += GRAVITY * dt
@@ -512,6 +626,14 @@ function App() {
       // עדכון מיקום X עם התנגשות אופקית פשוטה מול משטחים
       let nextX = g.x + g.vx * dt
       nextX = Math.max(0, Math.min(WORLD_WIDTH - PLAYER_WIDTH, nextX))
+      // קופסאות מתנה חוסמות מהצדדים
+      for (const box of GIFT_BOX_SOLIDS) {
+        const overlapsY = g.y + PLAYER_HEIGHT > box.y && g.y < box.y + box.height
+        const overlapsX = nextX + PLAYER_WIDTH > box.x && nextX < box.x + box.width
+        if (!overlapsY || !overlapsX) continue
+        if (g.vx > 0) nextX = box.x - PLAYER_WIDTH
+        else if (g.vx < 0) nextX = box.x + box.width
+      }
       g.x = nextX
 
       // עדכון מיקום Y + התנגשות אנכית מול משטחים (נחיתה מלמעלה בלבד)
@@ -530,8 +652,39 @@ function App() {
       }
 
       g.onGround = false
+      g.groundKind = null
 
-      for (const platform of LEVEL.platforms) {
+      // מכה בראש בתחתית קופסת מתנה בזמן עלייה
+      if (g.vy < 0 && !g.climbing) {
+        for (const box of GIFT_BOX_SOLIDS) {
+          const withinX = g.x + PLAYER_WIDTH > box.x && g.x < box.x + box.width
+          const boxBottom = box.y + box.height
+          if (withinX && g.y >= boxBottom - 1 && nextY < boxBottom) {
+            nextY = boxBottom
+            g.vy = 0
+            g.jumpCut = true
+            openGiftBox(box)
+            break
+          }
+        }
+      }
+
+      // נחיתה מלמעלה: רצפות, מדפים, המעלית וראש קופסאות המתנה.
+      // אם כמה משטחים נחצו באותו פריים — נוחתים על העליון שבהם.
+      // המעלית ראשונה כדי שבתיקו מול רצפה באותו גובה היא תנצח ותסיע את הדמות.
+      const landingSurfaces = [
+        {
+          x: elevatorConfig.x,
+          y: elevator.y,
+          width: elevatorConfig.width,
+          kind: 'elevator',
+        },
+        ...LEVEL.platforms,
+        ...GIFT_BOX_SOLIDS,
+      ]
+      let landing = null
+      for (const platform of landingSurfaces) {
+        if (platform.kind === 'shelf' && now < g.dropThroughUntil) continue
         const withinX =
           g.x + PLAYER_WIDTH > platform.x && g.x < platform.x + platform.width
         if (!withinX) continue
@@ -543,13 +696,18 @@ function App() {
         if (
           g.vy >= 0 &&
           playerBottomBefore <= platformTop + 1 &&
-          playerBottomAfter >= platformTop
+          playerBottomAfter >= platformTop &&
+          (!landing || platformTop < landing.y)
         ) {
-          nextY = platformTop - PLAYER_HEIGHT
-          g.vy = 0
-          g.onGround = true
-          g.jumping = false
+          landing = platform
         }
+      }
+      if (landing) {
+        nextY = landing.y - PLAYER_HEIGHT
+        g.vy = 0
+        g.onGround = true
+        g.jumping = false
+        g.groundKind = landing.kind ?? 'floor'
       }
 
       // רצפת ביטחון (לא אמור לקרות, אבל שלא ייפול מהעולם)
@@ -558,6 +716,7 @@ function App() {
         g.vy = 0
         g.onGround = true
         g.jumping = false
+        g.groundKind = 'floor'
       }
 
       g.y = nextY
@@ -614,7 +773,7 @@ function App() {
       let nearbyKey = null
       let collectedKeyThisFrame = false
       for (const key of LEVEL.keys) {
-        if (g.collected.has(key.id)) continue
+        if (key.inBox || g.collected.has(key.id)) continue
         const dx = g.x + PLAYER_WIDTH / 2 - (key.x + 16)
         const dy = g.y + PLAYER_HEIGHT / 2 - (key.y + 16)
         const overlapsKeyX =
@@ -647,6 +806,17 @@ function App() {
         setGiftPreview(null)
       }
 
+      // רמז ⬇ מעל דלת סודית כשעומדים מולה
+      for (const door of LEVEL.doors) {
+        const element = doorElementsRef.current[door.id]
+        if (!element) continue
+        const isNear =
+          g.x + PLAYER_WIDTH / 2 > door.x &&
+          g.x + PLAYER_WIDTH / 2 < door.x + door.width &&
+          Math.abs(g.y + PLAYER_HEIGHT - (door.y + door.height)) < 6
+        element.classList.toggle('secret-door--near', isNear)
+      }
+
       // מצלמה עוקבת אחרי הדמות בשני הצירים ונשארת בגבולות העולם, וציור ישיר
       // ל-DOM (בלי re-render בכל פריים)
       syncCameraToDOM()
@@ -659,7 +829,7 @@ function App() {
       if (game.current.rafId) cancelAnimationFrame(game.current.rafId)
       game.current.lastTime = null
     }
-  }, [phase, collectKey, syncCameraToDOM])
+  }, [phase, collectKey, openGiftBox, syncCameraToDOM])
 
   // --- טיימר הסבב ---
   useEffect(() => {
@@ -721,6 +891,15 @@ function App() {
     game.current.jumpCut = false
     game.current.jumpBufferedAt = -Infinity
     game.current.lastGroundedAt = -Infinity
+    game.current.groundKind = null
+    game.current.dropThroughUntil = 0
+    game.current.downWasDown = false
+    game.current.downTapped = false
+    game.current.elevator = createElevatorState()
+    game.current.openedBoxes = new Set()
+    for (const element of Object.values(giftBoxElementsRef.current)) {
+      element?.classList.remove('gift-box--opened', 'gift-box--bump')
+    }
     game.current.facing = 1
     game.current.cameraX = 0
     game.current.lastFootstepAt = 0
@@ -755,7 +934,10 @@ function App() {
       down: 'ArrowDown',
     }
     const code = codeMap[action]
-    if (isDown) game.current.keysDown.add(code)
+    if (isDown) {
+      game.current.keysDown.add(code)
+      if (action === 'down') game.current.downTapped = true
+    }
     else game.current.keysDown.delete(code)
   }
 
@@ -852,7 +1034,7 @@ function App() {
             {LEVEL.platforms.map((p, i) => (
               <div
                 key={i}
-                className="platform"
+                className={`platform${p.kind ? ` platform--${p.kind}` : ''}`}
                 style={{
                   left: p.x,
                   top: p.y,
@@ -875,7 +1057,63 @@ function App() {
               />
             ))}
 
-            {LEVEL.keys.map((k) => (
+            <div
+              className="elevator-shaft"
+              style={{
+                left: LEVEL.elevator.x,
+                top: LEVEL.elevator.topY - 90,
+                width: LEVEL.elevator.width,
+                height: LEVEL.elevator.bottomY - LEVEL.elevator.topY + 90,
+              }}
+            />
+            <div
+              className="elevator"
+              ref={elevatorRef}
+              style={{
+                left: LEVEL.elevator.x,
+                top: LEVEL.elevator.topY,
+                width: LEVEL.elevator.width,
+                height: LEVEL.elevator.height,
+              }}
+            />
+
+            {LEVEL.doors.map((door) => (
+              <div
+                key={door.id}
+                ref={(el) => {
+                  doorElementsRef.current[door.id] = el
+                }}
+                className="secret-door"
+                style={{
+                  left: door.x,
+                  top: door.y,
+                  width: door.width,
+                  height: door.height,
+                }}
+              >
+                <span className="secret-door__hint">⬇</span>
+              </div>
+            ))}
+
+            {LEVEL.giftBoxes.map((box) => (
+              <div
+                key={box.id}
+                ref={(el) => {
+                  giftBoxElementsRef.current[box.id] = el
+                }}
+                className="gift-box"
+                style={{
+                  left: box.x,
+                  top: box.y,
+                  width: box.width,
+                  height: box.height,
+                }}
+              >
+                <span className="gift-box__icon">🎁</span>
+              </div>
+            ))}
+
+            {LEVEL.keys.filter((k) => !k.inBox).map((k) => (
               <div
                 key={k.id}
                 ref={(el) => {

@@ -105,15 +105,77 @@ function buildLevel() {
     ),
   ]
 
+  // --- קופסאות מתנה (כמו קוביות "?" במריו): מכה מלמטה מקפיצה מפתח ---
+  // כל קופסה מחביאה את המפתח של המשבצת שמתחתיה (אינדקס ב-keySlots),
+  // כך שסך המפתחות נשאר TOTAL_KEYS.
+  const GIFT_BOX_SIZE = 40
+  const GIFT_BOX_GAP_ABOVE_FLOOR = 130 // המרחק מהרצפה לתחתית הקופסה
+  const giftBoxSlotIndexes = [2, 7, 13, 17, 20, 26]
+  const floorYBySlotIndex = (index) => floorSlots[Math.floor(index / 10)].floorY
+  const giftBoxes = giftBoxSlotIndexes.map((slotIndex) => ({
+    id: `box-${slotIndex}`,
+    keyId: `key-${COURSES[slotIndex].id}`,
+    x: Math.round(IMAGE_RENDER_WIDTH * keySlots[slotIndex].x) - GIFT_BOX_SIZE / 2,
+    y: floorYBySlotIndex(slotIndex) - GIFT_BOX_GAP_ABOVE_FLOOR - GIFT_BOX_SIZE,
+    width: GIFT_BOX_SIZE,
+    height: GIFT_BOX_SIZE,
+  }))
+  const keyIdsInBoxes = new Set(giftBoxes.map((box) => box.keyId))
+
   const keys = keySlots.map((slot, i) => ({
     id: `key-${COURSES[i].id}`,
     courseId: COURSES[i].id,
     gift: COURSES[i],
     x: Math.round(IMAGE_RENDER_WIDTH * slot.x) - 16,
     y: slot.y - 44,
+    inBox: keyIdsInBoxes.has(`key-${COURSES[i].id}`),
   }))
 
-  return { platforms, ladders, keys }
+  // --- מדפים צפים בין הקומות: עולים עליהם מלמטה, ⬇ מפיל מהם ---
+  const shelf = (xRatio, upperFloorY, lowerFloorY) => ({
+    x: Math.round(IMAGE_RENDER_WIDTH * xRatio),
+    y: Math.round((upperFloorY + lowerFloorY) / 2),
+    width: 130,
+    height: 14,
+    kind: 'shelf',
+  })
+  platforms.push(
+    shelf(0.4, FLOOR_2_Y, GROUND_Y),
+    shelf(0.82, FLOOR_2_Y, GROUND_Y),
+    shelf(0.18, FLOOR_1_Y, FLOOR_2_Y),
+    shelf(0.8, FLOOR_1_Y, FLOOR_2_Y)
+  )
+
+  // --- מעלית זכוכית שנוסעת בין הקומה האמצעית לעליונה ---
+  const elevator = {
+    x: Math.round(IMAGE_RENDER_WIDTH * 0.92),
+    width: 96,
+    height: 14,
+    topY: FLOOR_1_Y,
+    bottomY: FLOOR_2_Y,
+    speed: 110, // px/s
+    pauseMs: 900, // עצירה בכל קומה כדי שיהיה קל לעלות/לרדת
+  }
+
+  // --- דלתות סודיות (כמו הצינורות במריו): ⬇ מול דלת מעביר לדלת השנייה ---
+  const DOOR_WIDTH = 54
+  const DOOR_HEIGHT = 84
+  const doors = [
+    {
+      id: 'door-ground',
+      x: Math.round(IMAGE_RENDER_WIDTH * 0.965) - DOOR_WIDTH / 2,
+      y: GROUND_Y - DOOR_HEIGHT,
+      targetId: 'door-top',
+    },
+    {
+      id: 'door-top',
+      x: Math.round(IMAGE_RENDER_WIDTH * 0.01),
+      y: FLOOR_1_Y - DOOR_HEIGHT,
+      targetId: 'door-ground',
+    },
+  ].map((door) => ({ ...door, width: DOOR_WIDTH, height: DOOR_HEIGHT }))
+
+  return { platforms, ladders, keys, giftBoxes, elevator, doors }
 }
 
 export const LEVEL = buildLevel()
