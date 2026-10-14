@@ -45,13 +45,22 @@ const FLOOR_2_Y = Math.round(IMAGE_RENDER_HEIGHT * FLOOR_2_RATIO)
 export const GROUND_Y = Math.round(IMAGE_RENDER_HEIGHT * 0.96)
 
 // Gift details can be connected to the fair spreadsheet when its data is available.
+// רשימת העסקים והמתנות. כרגע נתוני דוגמה — יוחלפו ברשימת העסקים של היריד.
+// logoUrl: כתובת ללוגו (למשל '/logos/name.png'). בלי לוגו מוצג עיגול צבעוני עם ראשי תיבות.
+// color: צבע המותג — משמש לקונפטי ולמסגרת בבועת הבמה.
 export const COURSES = Array.from({ length: 30 }, (_, i) => ({
   id: `gift-${i + 1}`,
-  businessName: 'מתנת היריד',
-  giftName: `מתנה ${i + 1}`,
+  businessName: `עסק לדוגמה ${i + 1}`,
+  giftName: `מתנה מספר ${i + 1}`,
   logoUrl: null,
-  videoUrl: null,
+  color: `hsl(${(i * 47) % 360} 65% 45%)`,
 }))
+
+// --- בועת הבמה: אחרי תפיסת מפתח ---
+// כמה לחיצות צריך כדי לפתוח את המתנה (0 = נפתחת מיד בלי פעולה)
+export const UNWRAP_TAPS = 3
+// כמה זמן המתנה הפתוחה נשארת על המסך לפני שהמשחק ממשיך
+export const REVEAL_MS = 2200
 
 // --- בניית הרמה: שלוש קומות המחוברות בסולמות ---
 function buildLevel() {
@@ -132,18 +141,21 @@ function buildLevel() {
   }))
 
   // --- מדפים צפים בין הקומות: עולים עליהם מלמטה, ⬇ מפיל מהם ---
-  const shelf = (xRatio, upperFloorY, lowerFloorY) => ({
-    x: Math.round(IMAGE_RENDER_WIDTH * xRatio),
+  // המדפים ממורכזים ברווח שבין שתי משבצות מפתחות, כדי שלא יכסו מפתח מלמעלה
+  // (מפתח נאסף בנחיתה עליו — מדף מעליו היה תופס את הדמות קודם)
+  const SHELF_WIDTH = 90
+  const shelf = (centerRatio, upperFloorY, lowerFloorY) => ({
+    x: Math.round(IMAGE_RENDER_WIDTH * centerRatio) - SHELF_WIDTH / 2,
     y: Math.round((upperFloorY + lowerFloorY) / 2),
-    width: 130,
+    width: SHELF_WIDTH,
     height: 14,
     kind: 'shelf',
   })
   platforms.push(
-    shelf(0.4, FLOOR_2_Y, GROUND_Y),
-    shelf(0.82, FLOOR_2_Y, GROUND_Y),
-    shelf(0.18, FLOOR_1_Y, FLOOR_2_Y),
-    shelf(0.8, FLOOR_1_Y, FLOOR_2_Y)
+    shelf(0.455, FLOOR_2_Y, GROUND_Y),
+    shelf(0.825, FLOOR_2_Y, GROUND_Y),
+    shelf(0.185, FLOOR_1_Y, FLOOR_2_Y),
+    shelf(0.825, FLOOR_1_Y, FLOOR_2_Y)
   )
 
   // --- מעלית זכוכית שעולה ויורדת בין כל הקומות, עם עצירה בכל קומה ---

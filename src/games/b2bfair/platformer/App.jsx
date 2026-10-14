@@ -23,6 +23,8 @@ import {
   IMAGE_RENDER_HEIGHT,
   COURSES,
   LEVEL,
+  UNWRAP_TAPS,
+  REVEAL_MS,
 } from './constants'
 import robotSpriteSheet from './assets/robot-sprite-transparent.png'
 import robotClimbSpriteSheet from './assets/robot-sprite-climb-no-ladder.png'
@@ -183,6 +185,88 @@ const GIFT_BOX_SOLIDS = LEVEL.giftBoxes.map((box) => ({ ...box, kind: 'box' }))
 const KEYS_BY_ID = Object.fromEntries(LEVEL.keys.map((key) => [key.id, key]))
 const DOORS_BY_ID = Object.fromEntries(LEVEL.doors.map((door) => [door.id, door]))
 
+function initials(name) {
+  const words = name.trim().split(/\s+/)
+  return (words[0]?.[0] ?? '') + (words[1]?.[0] ?? '')
+}
+
+// לוגו העסק; בלי לוגו — עיגול צבעוני עם ראשי תיבות
+function GiftLogo({ gift }) {
+  if (gift.logoUrl) return <img src={gift.logoUrl} alt={gift.businessName} draggable="false" />
+  return (
+    <span className="gift-logo-fallback" style={{ background: gift.color }}>
+      {initials(gift.businessName)}
+    </span>
+  )
+}
+
+function playUnwrapTapSound(audioContext, tapIndex) {
+  if (audioContext?.state !== 'running') return
+  const notes = [523.25, 659.25, 783.99, 987.77]
+  playLadderNotes(audioContext, [notes[tapIndex % notes.length]], audioContext.currentTime, 0)
+}
+
+function playRevealSound(audioContext) {
+  if (audioContext?.state !== 'running') return
+  const t = audioContext.currentTime
+  playLadderNotes(audioContext, [783.99, 987.77, 1174.66, 1567.98], t, 0.07)
+  playLadderNotes(audioContext, [1046.5, 1318.51, 1567.98, 2093], t + 0.32, 0.05)
+}
+
+// בועת הבמה: המתנה של העסק במרכז המסך — קודם עטופה (לוחצים כדי לפתוח), ואז נחשפת
+function GiftStage({ stage, onTap }) {
+  const { gift, taps, opened } = stage
+  return (
+    <div className="gift-stage" onPointerDown={onTap} role="dialog" aria-live="polite">
+      <div
+        className={`gift-stage__bubble${opened ? ' gift-stage__bubble--opened' : ''}`}
+        style={{ '--brand': gift.color }}
+      >
+        {!opened ? (
+          <>
+            <div key={taps} className={`gift-stage__box gift-stage__box--shake-${Math.min(taps, 3)}`}>
+              <span className="gift-stage__ribbon" aria-hidden="true" />
+              <span className="gift-stage__box-logo">
+                <GiftLogo gift={gift} />
+              </span>
+            </div>
+            <p className="gift-stage__business">{gift.businessName}</p>
+            <p className="gift-stage__hint">
+              לחצו רווח / הקישו לפתיחה
+              <span className="gift-stage__dots">
+                {Array.from({ length: UNWRAP_TAPS }, (_, i) => (
+                  <span key={i} className={i < taps ? 'is-on' : ''} />
+                ))}
+              </span>
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="gift-stage__confetti" aria-hidden="true">
+              {Array.from({ length: 22 }, (_, i) => (
+                <span
+                  key={i}
+                  style={{
+                    '--angle': `${(i / 22) * 360}deg`,
+                    '--distance': `${120 + (i % 4) * 28}px`,
+                    background: i % 3 === 0 ? gift.color : i % 3 === 1 ? '#f1d896' : '#ffffff',
+                  }}
+                />
+              ))}
+            </div>
+            <span className="gift-stage__logo">
+              <GiftLogo gift={gift} />
+            </span>
+            <p className="gift-stage__business">{gift.businessName}</p>
+            <h2 className="gift-stage__gift">{gift.giftName}</h2>
+            <p className="gift-stage__added">🎉 נוסף לסל המתנות שלכם</p>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function createElevatorState() {
   // מתחילה בקרקע (תחנה 0) ונוסעת לתחנה הבאה למעלה
   return { y: LEVEL.elevator.stops[0], stopIndex: 1, direction: 1, pauseUntil: 0 }
@@ -225,6 +309,10 @@ function App() {
   const [collectedIds, setCollectedIds] = useState(() => new Set())
   const [leadSubmitted, setLeadSubmitted] = useState(false)
   const [giftPreview, setGiftPreview] = useState(null)
+  // בועת הבמה הפתוחה כרגע: { gift, taps, opened } או null
+  const [giftStage, setGiftStage] = useState(null)
+  const giftStageRef = useRef(null)
+  const revealTimerRef = useRef(null)
   const [claimedGiftIds, setClaimedGiftIds] = useState(() => new Set())
 
   const viewportRef = useRef(null)
@@ -288,6 +376,13 @@ function App() {
   // --- קלט מקלדת ---
   useEffect(() => {
     function handleKeyDown(e) {
+      if (giftStageRef.current) {
+        if (['Space', 'ArrowUp', 'Enter', 'KeyW'].includes(e.code)) {
+          e.preventDefault()
+          if (!e.repeat) tapGiftStageRef.current()
+        }
+        return
+      }
       game.current.keysDown.add(e.code)
       // לחיצה קצרה מאוד יכולה להתחיל ולהיגמר בין שני פריימים — שומרים אותה
       if (!e.repeat && (e.code === 'ArrowDown' || e.code === 'KeyS')) {
@@ -376,6 +471,54 @@ function App() {
     syncCameraToDOM()
   }, [phase, syncCameraToDOM])
 
+  // עוצר את המשחק ופותח את בועת הבמה של העסק
+  function openGiftStage(courseId) {
+    const g = game.current
+    g.paused = true
+    g.keysDown.clear()
+    g.vx = 0
+    const gift = COURSES.find((course) => course.id === courseId)
+    const stage = { gift, taps: 0, opened: UNWRAP_TAPS === 0 }
+    giftStageRef.current = stage
+    setGiftStage(stage)
+    if (stage.opened) revealGift()
+  }
+
+  function revealGift() {
+    playRevealSound(audioContextRef.current)
+    window.clearTimeout(revealTimerRef.current)
+    revealTimerRef.current = window.setTimeout(closeGiftStage, REVEAL_MS)
+  }
+
+  function closeGiftStage() {
+    window.clearTimeout(revealTimerRef.current)
+    giftStageRef.current = null
+    setGiftStage(null)
+    const g = game.current
+    g.keysDown.clear()
+    g.lastTime = null
+    g.paused = false
+  }
+
+  // לחיצה בזמן שהבועה פתוחה: מנערת את הקופסה; בלחיצה האחרונה היא נפתחת.
+  // אחרי שנפתחה — לחיצה נוספת סוגרת מהר יותר.
+  function tapGiftStage() {
+    const stage = giftStageRef.current
+    if (!stage) return
+    if (stage.opened) {
+      closeGiftStage()
+      return
+    }
+    const taps = stage.taps + 1
+    playUnwrapTapSound(audioContextRef.current, taps - 1)
+    const next = { ...stage, taps, opened: taps >= UNWRAP_TAPS }
+    giftStageRef.current = next
+    setGiftStage(next)
+    if (next.opened) revealGift()
+  }
+  const tapGiftStageRef = useRef(tapGiftStage)
+  tapGiftStageRef.current = tapGiftStage
+
   const collectKey = useCallback((keyId, courseId) => {
     if (game.current.collected.has(keyId)) return
     game.current.collected.add(keyId)
@@ -383,7 +526,8 @@ function App() {
     const el = keyElementsRef.current[keyId]
     if (el) el.style.display = 'none'
     setCollectedIds((prev) => new Set(prev).add(courseId))
-    setClaimedGiftIds((previous) => new Set(previous).add(courseId))
+    setGiftPreview(null)
+    openGiftStage(courseId)
   }, [])
 
   // מכה בקופסת מתנה מלמטה: הקופסה קופצת, מפתח עף ממנה למעלה ונאסף
@@ -418,6 +562,12 @@ function App() {
 
     function step(now) {
       const g = game.current
+      if (g.paused) {
+        // בועת הבמה פתוחה — העולם קפוא
+        g.lastTime = now
+        g.rafId = requestAnimationFrame(step)
+        return
+      }
       if (g.lastTime == null) g.lastTime = now
       const dt = Math.min((now - g.lastTime) / 1000, 0.05)
       g.lastTime = now
@@ -838,6 +988,7 @@ function App() {
   useEffect(() => {
     if (phase !== 'playing') return
     const interval = setInterval(() => {
+      if (game.current.paused) return
       setTimeLeft((t) => {
         if (t <= 1) {
           clearInterval(interval)
@@ -890,6 +1041,10 @@ function App() {
     game.current.jumping = false
     game.current.onGround = false
     game.current.climbing = false
+    game.current.paused = false
+    giftStageRef.current = null
+    setGiftStage(null)
+    window.clearTimeout(revealTimerRef.current)
     game.current.jumpWasDown = false
     game.current.jumpCut = false
     game.current.jumpBufferedAt = -Infinity
@@ -1124,8 +1279,12 @@ function App() {
                 }}
                 className="key-item"
                 style={{ left: k.x, top: k.y }}
+                title={`${k.gift.businessName} — ${k.gift.giftName}`}
               >
-                🔑
+                <span className="key-item__logo">
+                  <GiftLogo gift={k.gift} />
+                </span>
+                <span className="key-item__key" aria-hidden="true">🔑</span>
               </div>
             ))}
 
@@ -1190,7 +1349,6 @@ function App() {
                 <div className="hud-pill">
                   🔑 {keysCollectedCount} / {TOTAL_KEYS}
                 </div>
-                <div className="hud-pill">🎁 {giftsClaimedCount}</div>
               </div>
 
               <div className="touch-controls">
@@ -1236,14 +1394,10 @@ function App() {
         </div>
       )}
 
-      {giftPreview && phase === 'playing' && (
+      {giftPreview && phase === 'playing' && !giftStage && (
         <aside className="gift-preview" aria-live="polite">
           <div className="gift-preview__logo">
-            {giftPreview.logoUrl ? (
-              <img src={giftPreview.logoUrl} alt="" />
-            ) : (
-              <span aria-hidden="true">🎁</span>
-            )}
+            <GiftLogo gift={giftPreview} />
           </div>
           <div className="gift-preview__copy">
             <span>{giftPreview.businessName}</span>
@@ -1252,14 +1406,33 @@ function App() {
         </aside>
       )}
 
+      {giftStage && phase === 'playing' && (
+        <GiftStage stage={giftStage} onTap={() => tapGiftStageRef.current()} />
+      )}
+
       {phase === 'ended' && (
         <div className="scene scene--center">
           <h1>הזמן נגמר!</h1>
           <p className="subtitle">נאספו {keysCollectedCount} מתוך {COURSES.length} מתנות</p>
 
           <div className="gift-selection" dir="rtl">
-            <h2>המתנות שלך</h2>
-            <p className="gift-selection__count">{giftsClaimedCount} נבחרו למשלוח</p>
+            <h2>לאילו עסקים תרצו להצטרף?</h2>
+            <p className="gift-selection__count">
+              סמנו את העסקים שתרצו לקבל מהם את המתנה ועדכונים · {giftsClaimedCount} נבחרו
+            </p>
+            <button
+              type="button"
+              className="secondary-btn gift-selection__all"
+              onClick={() =>
+                setClaimedGiftIds(
+                  giftsClaimedCount === COURSES.length
+                    ? new Set()
+                    : new Set(COURSES.map((course) => course.id))
+                )
+              }
+            >
+              {giftsClaimedCount === COURSES.length ? 'ניקוי הבחירה' : 'בחרו הכול'}
+            </button>
             <div className="gift-selection__list">
               {collectedGifts.map((gift) => (
                 <label className="gift-selection__item" key={gift.id}>
@@ -1269,14 +1442,14 @@ function App() {
                     onChange={() => toggleGiftSelection(gift.id)}
                   />
                   <span className="gift-selection__logo">
-                    {gift.logoUrl ? <img src={gift.logoUrl} alt="" /> : '🎁'}
+                    <GiftLogo gift={gift} />
                   </span>
                   <span className="gift-selection__text">
                     <strong>{gift.giftName}</strong>
                     <small>{gift.businessName}</small>
                   </span>
                   <span className="gift-selection__status">
-                    {claimedGiftIds.has(gift.id) ? 'נבחרה' : 'לא נבחרה'}
+                    {claimedGiftIds.has(gift.id) ? 'מצטרפים ✓' : 'נאסף במשחק 🎁'}
                   </span>
                 </label>
               ))}
@@ -1288,14 +1461,14 @@ function App() {
                     onChange={() => toggleGiftSelection(gift.id)}
                   />
                   <span className="gift-selection__logo">
-                    {gift.logoUrl ? <img src={gift.logoUrl} alt="" /> : '✨'}
+                    <GiftLogo gift={gift} />
                   </span>
                   <span className="gift-selection__text">
                     <strong>{gift.giftName}</strong>
                     <small>{gift.businessName} · אפשר להוסיף גם בלי לאסוף במשחק</small>
                   </span>
                   <span className="gift-selection__status">
-                    {claimedGiftIds.has(gift.id) ? 'נוספה' : 'להוספה'}
+                    {claimedGiftIds.has(gift.id) ? 'מצטרפים ✓' : 'להצטרפות'}
                   </span>
                 </label>
               ))}
@@ -1308,7 +1481,7 @@ function App() {
             </p>
           ) : (
             <p className="result-badge">
-              עוד {KEYS_REQUIRED_FOR_FREE_ENTRY - keysCollectedCount} מפתחות
+              עוד {KEYS_REQUIRED_FOR_FREE_ENTRY - keysCollectedCount} מתנות
               היו נותנים כניסה חינם — אפשר גם לרכוש כרטיס למתחם הקורסים
             </p>
           )}
@@ -1318,8 +1491,8 @@ function App() {
               <input type="text" placeholder="שם מלא" required />
               <input type="email" placeholder="אימייל" required />
               <input type="tel" placeholder="טלפון" />
-              <button type="submit" className="primary-btn">
-                קבלו את הפרסים שלכם
+              <button type="submit" className="primary-btn" disabled={giftsClaimedCount === 0}>
+                {giftsClaimedCount === 0 ? 'סמנו לפחות עסק אחד' : 'קבלו את המתנות שבחרתם'}
               </button>
             </form>
           ) : (
