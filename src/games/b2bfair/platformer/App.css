@@ -2037,9 +2037,15 @@
   transform: scale(1.08);
 }
 
+/* תא גריד בגודל הקופסה בדיוק — אחרת max-height באחוזים לא נתפס, ולוגו ריבועי
+   (כמו גייט) גלש מעבר לקופסה הלבנה ונחתך בתחתית */
+.b2b-platformer .lesson__logo {
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+}
+
 .b2b-platformer .lesson__logo img {
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
 }
 
