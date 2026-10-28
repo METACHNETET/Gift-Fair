@@ -62,6 +62,10 @@
                                          "function":  "sendSummerThankYou"
                                      },
                                      {
+                                         "source":  "/api/b2b-thank-you",
+                                         "function":  "sendB2BThankYou"
+                                     },
+                                     {
                                          "source":  "**",
                                          "destination":  "/index.html"
                                      }

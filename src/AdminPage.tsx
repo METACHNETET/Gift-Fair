@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Shop } from "./types";
 import GENERATED_SHOPS from "./shops-data";
 import { STORES as SUMMER_STORES } from "./games/summerfair/shops-data";
+import { BUSINESSES as B2B_BUSINESSES } from "./games/b2bfair/platformer/businesses";
 import { RefreshCw, LogOut, Download, ChevronDown, ChevronUp } from "lucide-react";
 
 // ─── Admin config ─────────────────────────────────────────────────────────────
@@ -54,7 +55,27 @@ interface AllLead {
   shopCount: number;
 }
 
-type ActiveFair = "giftfair" | "summerfair";
+// ירידים "פשוטים" (יריד החופש, יריד B2B): finale_leads + early_signups, בלי shop_interests.
+// אותו דשבורד משמש את שניהם — רק רשימת העסקים ושם הקובץ שונים.
+type SimpleFairId = "summerfair" | "b2bfair";
+type ActiveFair = "giftfair" | SimpleFairId;
+
+const SIMPLE_FAIR_STORES: Record<SimpleFairId, { id: string; name: string; gift: string }[]> = {
+  summerfair: SUMMER_STORES.map(store => ({ id: String(store.id), name: store.name, gift: store.gift })),
+  b2bfair: B2B_BUSINESSES.map((b: { id: string; businessName: string; giftName: string }) => ({
+    id: b.id, name: b.businessName, gift: b.giftName,
+  })),
+};
+
+interface SimpleFairData {
+  shops: SummerShopWithLeads[];
+  finaleLeads: FinaleLead[];
+  earlySignups: EarlySignup[];
+  refStats: RefStat[];
+  exportedByShop: Record<string, Set<string>>;
+}
+
+const EMPTY_SIMPLE_FAIR: SimpleFairData = { shops: [], finaleLeads: [], earlySignups: [], refStats: [], exportedByShop: {} };
 
 // ─── AdminPage ────────────────────────────────────────────────────────────────
 export default function AdminPage() {
@@ -69,12 +90,11 @@ export default function AdminPage() {
   const [refStats, setRefStats] = useState<RefStat[]>([]);
   const [exportedByShop, setExportedByShop] = useState<Record<string, Set<string>>>({});
 
-  // ── SummerFair state ──
-  const [sfShops, setSfShops] = useState<SummerShopWithLeads[]>([]);
-  const [sfFinaleLeads, setSfFinaleLeads] = useState<FinaleLead[]>([]);
-  const [sfEarlySignups, setSfEarlySignups] = useState<EarlySignup[]>([]);
-  const [sfRefStats, setSfRefStats] = useState<RefStat[]>([]);
-  const [sfExportedByShop, setSfExportedByShop] = useState<Record<string, Set<string>>>({});
+  // ── SummerFair / B2B state ──
+  const [simpleFairs, setSimpleFairs] = useState<Record<SimpleFairId, SimpleFairData>>({
+    summerfair: EMPTY_SIMPLE_FAIR,
+    b2bfair: EMPTY_SIMPLE_FAIR,
+  });
 
   // ── Shared UI state ──
   const [expandedShopId, setExpandedShopId] = useState<string | null>(null);
@@ -158,19 +178,18 @@ export default function AdminPage() {
     setRefStats(Object.entries(refMap).map(([ref, count]) => ({ ref, count })).sort((a, b) => b.count - a.count));
   }, []);
 
-  // ─── Fetch SummerFair ────────────────────────────────────────────────────────
-  const fetchSummerFair = useCallback(async () => {
+  // ─── Fetch SummerFair / B2B ──────────────────────────────────────────────────
+  const fetchSimpleFair = useCallback(async (fairId: SimpleFairId) => {
     const [finaleSnap, earlySnap, exportedSnap] = await Promise.all([
-      getDocsFromServer(collection(db, "fairs", "summerfair", "finale_leads")),
-      getDocsFromServer(collection(db, "fairs", "summerfair", "early_signups")),
-      getDocsFromServer(collection(db, "fairs", "summerfair", "exported_leads")),
+      getDocsFromServer(collection(db, "fairs", fairId, "finale_leads")),
+      getDocsFromServer(collection(db, "fairs", fairId, "early_signups")),
+      getDocsFromServer(collection(db, "fairs", fairId, "exported_leads")),
     ]);
 
-    const sfExportedMap: Record<string, Set<string>> = {};
+    const exportedMap: Record<string, Set<string>> = {};
     exportedSnap.docs.forEach(d => {
-      sfExportedMap[d.id] = new Set((d.data().emails as string[] | undefined) ?? []);
+      exportedMap[d.id] = new Set((d.data().emails as string[] | undefined) ?? []);
     });
-    setSfExportedByShop(sfExportedMap);
 
     const shopEmailSets: Record<string, Set<string>> = {};
     finaleSnap.docs.forEach(d => {
@@ -182,33 +201,34 @@ export default function AdminPage() {
       });
     });
 
-    const results: SummerShopWithLeads[] = SUMMER_STORES.map(store => ({
-      id: String(store.id),
-      name: store.name,
-      gift: store.gift,
-      leadCount: shopEmailSets[String(store.id)]?.size ?? 0,
+    const shopsWithLeads: SummerShopWithLeads[] = SIMPLE_FAIR_STORES[fairId].map(store => ({
+      ...store,
+      leadCount: shopEmailSets[store.id]?.size ?? 0,
     }));
-    results.sort((a, b) => b.leadCount - a.leadCount);
-    setSfShops(results);
-
-    setSfFinaleLeads(finaleSnap.docs.map(d => ({
-      name: d.data().name as string,
-      email: d.data().email as string,
-      shopIds: (d.data().shopIds as string[] | undefined) ?? [],
-      claimedAt: d.data().claimedAt ?? null,
-    })));
-
-    setSfEarlySignups(earlySnap.docs.map(d => ({
-      email: (d.data().email as string | undefined) ?? null,
-      signedUpAt: d.data().signedUpAt ?? null,
-    })));
+    shopsWithLeads.sort((a, b) => b.leadCount - a.leadCount);
 
     const refMap: Record<string, number> = {};
     finaleSnap.docs.forEach(d => {
-      const r = (d.data().ref as string | undefined) ?? "(ישיר)";
+      const r = (d.data().ref as string | undefined) || "(ישיר)";
       refMap[r] = (refMap[r] ?? 0) + 1;
     });
-    setSfRefStats(Object.entries(refMap).map(([ref, count]) => ({ ref, count })).sort((a, b) => b.count - a.count));
+
+    const data: SimpleFairData = {
+      shops: shopsWithLeads,
+      finaleLeads: finaleSnap.docs.map(d => ({
+        name: d.data().name as string,
+        email: d.data().email as string,
+        shopIds: (d.data().shopIds as string[] | undefined) ?? [],
+        claimedAt: d.data().claimedAt ?? null,
+      })),
+      earlySignups: earlySnap.docs.map(d => ({
+        email: (d.data().email as string | undefined) ?? null,
+        signedUpAt: d.data().signedUpAt ?? null,
+      })),
+      refStats: Object.entries(refMap).map(([ref, count]) => ({ ref, count })).sort((a, b) => b.count - a.count),
+      exportedByShop: exportedMap,
+    };
+    setSimpleFairs(prev => ({ ...prev, [fairId]: data }));
   }, []);
 
   // ─── Fetch all ───────────────────────────────────────────────────────────────
@@ -218,12 +238,13 @@ export default function AdminPage() {
     const errors: string[] = [];
     await Promise.all([
       fetchGiftFair().catch(err => { console.error("fetchGiftFair failed:", err); errors.push("יריד המתנות: " + (err instanceof Error ? err.message : String(err))); }),
-      fetchSummerFair().catch(err => { console.error("fetchSummerFair failed:", err); errors.push("יריד החופש: " + (err instanceof Error ? err.message : String(err))); }),
+      fetchSimpleFair("summerfair").catch(err => { console.error("fetchSummerFair failed:", err); errors.push("יריד החופש: " + (err instanceof Error ? err.message : String(err))); }),
+      fetchSimpleFair("b2bfair").catch(err => { console.error("fetchB2BFair failed:", err); errors.push("יריד B2B: " + (err instanceof Error ? err.message : String(err))); }),
     ]);
     if (errors.length) setFetchError(errors.join(" | "));
     setLastUpdated(new Date());
     setFetching(false);
-  }, [fetchGiftFair, fetchSummerFair]);
+  }, [fetchGiftFair, fetchSimpleFair]);
 
   useEffect(() => {
     if (isAdmin) fetchData();
@@ -336,12 +357,15 @@ export default function AdminPage() {
     return Array.from(byEmail.values());
   }, [finaleLeads, shopInterests, earlySignups]);
 
-  // ─── SummerFair helpers ───────────────────────────────────────────────────────
+  // ─── SummerFair / B2B helpers (פועלים על היריד הפעיל) ───────────────────────────
+  const simpleFairId: SimpleFairId = activeFair === "giftfair" ? "summerfair" : activeFair;
+  const sf = simpleFairs[simpleFairId];
+
   const downloadSfShopLeads = (shopId: string, shopName: string) => {
     const seenEmails = new Set<string>();
     type CsvRow = { name: string; email: string; date: string };
     const rows: CsvRow[] = [];
-    sfFinaleLeads.filter(l => l.shopIds.includes(shopId)).forEach(l => {
+    sf.finaleLeads.filter(l => l.shopIds.includes(shopId)).forEach(l => {
       const key = l.email?.toLowerCase();
       if (key && seenEmails.has(key)) return;
       if (key) seenEmails.add(key);
@@ -352,11 +376,11 @@ export default function AdminPage() {
   };
 
   const getNewSfLeadsForShop = (shopId: string) => {
-    const exported = sfExportedByShop[shopId] ?? new Set<string>();
+    const exported = sf.exportedByShop[shopId] ?? new Set<string>();
     const seenEmails = new Set<string>();
     type CsvRow = { name: string; email: string; date: string };
     const rows: CsvRow[] = [];
-    sfFinaleLeads.filter(l => l.shopIds.includes(shopId)).forEach(l => {
+    sf.finaleLeads.filter(l => l.shopIds.includes(shopId)).forEach(l => {
       const key = l.email?.toLowerCase();
       if (!key || seenEmails.has(key)) return;
       seenEmails.add(key);
@@ -367,33 +391,38 @@ export default function AdminPage() {
     return rows;
   };
 
+  const addExportedEmails = (fairId: SimpleFairId, key: string, emails: string[]) => {
+    setSimpleFairs(prev => {
+      const fair = prev[fairId];
+      const next = new Set(fair.exportedByShop[key] ?? []);
+      emails.forEach(e => next.add(e));
+      return { ...prev, [fairId]: { ...fair, exportedByShop: { ...fair.exportedByShop, [key]: next } } };
+    });
+  };
+
   const handleDownloadNewSfShopLeads = async (shopId: string, shopName: string) => {
     const rows = getNewSfLeadsForShop(shopId);
     if (rows.length === 0) return;
     downloadCsv(rows, `leads-חדשים-${shopName}.csv`);
     const emails = rows.map(r => r.email.toLowerCase());
-    await setDoc(doc(db, "fairs", "summerfair", "exported_leads", shopId), { emails: arrayUnion(...emails) }, { merge: true });
-    setSfExportedByShop(prev => {
-      const next = new Set(prev[shopId] ?? []);
-      emails.forEach(e => next.add(e));
-      return { ...prev, [shopId]: next };
-    });
+    await setDoc(doc(db, "fairs", simpleFairId, "exported_leads", shopId), { emails: arrayUnion(...emails) }, { merge: true });
+    addExportedEmails(simpleFairId, shopId, emails);
   };
 
   const sfAllLeads = useMemo((): AllLead[] => {
     const byEmail = new Map<string, AllLead>();
-    sfFinaleLeads.forEach(l => {
+    sf.finaleLeads.forEach(l => {
       const key = l.email?.toLowerCase().trim();
       if (!key) return;
       byEmail.set(key, { name: l.name, email: l.email, claimedAt: l.claimedAt, shopCount: l.shopIds.length });
     });
-    sfEarlySignups.forEach(l => {
+    sf.earlySignups.forEach(l => {
       const key = l.email?.toLowerCase().trim();
       if (!key || byEmail.has(key)) return;
       byEmail.set(key, { name: "", email: l.email!, claimedAt: l.signedUpAt, shopCount: 0 });
     });
     return Array.from(byEmail.values());
-  }, [sfFinaleLeads, sfEarlySignups]);
+  }, [sf]);
 
   // ─── Shared CSV util ──────────────────────────────────────────────────────────
   const downloadCsv = (rows: Record<string, string>[], filename: string) => {
@@ -457,29 +486,34 @@ export default function AdminPage() {
   }
 
   // ─── Current fair data ────────────────────────────────────────────────────────
-  const isSummer = activeFair === "summerfair";
-  const curShops = isSummer ? sfShops : shops;
+  // isSummer = כל יריד "פשוט" (חופש או B2B) — אותו מבנה טבלה
+  const isSummer = activeFair !== "giftfair";
+  const csvFairName = isSummer ? simpleFairId : "giftfair";
+  const curShops = isSummer ? sf.shops : shops;
   const curAllLeads = isSummer ? sfAllLeads : gfAllLeads;
-  const curRefStats = isSummer ? sfRefStats : refStats;
+  const curRefStats = isSummer ? sf.refStats : refStats;
   const totalLeads = curShops.reduce((s, sh) => s + sh.leadCount, 0);
 
   // ─── "New leads" export for the top-level all-leads button (additive; reuses exported_leads collection) ──
-  const curExportedByShop = isSummer ? sfExportedByShop : exportedByShop;
+  const curExportedByShop = isSummer ? sf.exportedByShop : exportedByShop;
   const exportedAllLeadsEmails = curExportedByShop[ALL_LEADS_EXPORT_KEY] ?? new Set<string>();
   const newAllLeadsList = curAllLeads.filter(l => !exportedAllLeadsEmails.has(l.email.toLowerCase().trim()));
 
   const handleDownloadNewAllLeads = async () => {
     if (newAllLeadsList.length === 0) return;
-    downloadAllLeads(newAllLeadsList, isSummer ? "לידים-חדשים-summerfair.csv" : "לידים-חדשים-giftfair.csv");
+    downloadAllLeads(newAllLeadsList, `לידים-חדשים-${csvFairName}.csv`);
     const emails = newAllLeadsList.map(l => l.email.toLowerCase().trim());
-    const fairId = isSummer ? "summerfair" : "main_fair";
+    const fairId = isSummer ? simpleFairId : "main_fair";
     await setDoc(doc(db, "fairs", fairId, "exported_leads", ALL_LEADS_EXPORT_KEY), { emails: arrayUnion(...emails) }, { merge: true });
-    const updateMap = isSummer ? setSfExportedByShop : setExportedByShop;
-    updateMap(prev => {
-      const next = new Set(prev[ALL_LEADS_EXPORT_KEY] ?? []);
-      emails.forEach(e => next.add(e));
-      return { ...prev, [ALL_LEADS_EXPORT_KEY]: next };
-    });
+    if (isSummer) {
+      addExportedEmails(simpleFairId, ALL_LEADS_EXPORT_KEY, emails);
+    } else {
+      setExportedByShop(prev => {
+        const next = new Set(prev[ALL_LEADS_EXPORT_KEY] ?? []);
+        emails.forEach(e => next.add(e));
+        return { ...prev, [ALL_LEADS_EXPORT_KEY]: next };
+      });
+    }
   };
 
   // ─── Admin dashboard ──────────────────────────────────────────────────────────
@@ -515,10 +549,18 @@ export default function AdminPage() {
           <button
             onClick={() => { setActiveFair("summerfair"); setExpandedShopId(null); }}
             className={`px-5 py-2.5 rounded-full text-sm font-bold transition-colors ${
-              isSummer ? "bg-sky-500 text-white shadow" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+              activeFair === "summerfair" ? "bg-sky-500 text-white shadow" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
             }`}
           >
             🏖️ יריד החופש
+          </button>
+          <button
+            onClick={() => { setActiveFair("b2bfair"); setExpandedShopId(null); }}
+            className={`px-5 py-2.5 rounded-full text-sm font-bold transition-colors ${
+              activeFair === "b2bfair" ? "bg-amber-500 text-white shadow" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            🤖 יריד B2B
           </button>
         </div>
 
@@ -557,7 +599,7 @@ export default function AdminPage() {
               <Download className="w-4 h-4 ml-2" />
               הורד לידים חדשים{newAllLeadsList.length > 0 ? ` (${newAllLeadsList.length})` : ""}
             </Button>
-            <Button onClick={() => downloadAllLeads(curAllLeads, isSummer ? "כל-הלידים-summerfair.csv" : "כל-הלידים-giftfair.csv")}
+            <Button onClick={() => downloadAllLeads(curAllLeads, `כל-הלידים-${csvFairName}.csv`)}
               disabled={curAllLeads.length === 0}>
               <Download className="w-4 h-4 ml-2" />
               הורד את כל הלידים (CSV)
@@ -595,10 +637,10 @@ export default function AdminPage() {
                 </thead>
                 <tbody>
                   {isSummer ? (
-                    sfShops.map((shop, i) => {
+                    sf.shops.map((shop, i) => {
                       const isExpanded = expandedShopId === shop.id;
                       const newCount = getNewSfLeadsForShop(shop.id).length;
-                      const displayLeads = sfFinaleLeads
+                      const displayLeads = sf.finaleLeads
                         .filter(l => l.shopIds.includes(shop.id))
                         .reduce<{ name: string; email: string }[]>((acc, l) => {
                           const key = l.email?.toLowerCase();

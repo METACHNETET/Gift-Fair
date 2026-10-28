@@ -1,5 +1,7 @@
 """Build businesses.js for the B2B game from businesses.json + downloaded logos."""
 import json, shutil, sys, os
+# מושבת: businesses.js נערך עכשיו ידנית והוא המקור הקובע — הרצה מהגיליון תמחק את התיקונים
+sys.exit('build_businesses.py מושבת — יש לערוך ידנית את src/games/b2bfair/platformer/businesses.js')
 src_json, logo_dir, public_dir, out_js = sys.argv[1:5]
 items = json.load(open(src_json, encoding='utf8'))
 os.makedirs(public_dir, exist_ok=True)

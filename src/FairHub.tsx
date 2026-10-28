@@ -46,7 +46,9 @@ const FAIRS: FairCard[] = [
     description: "טפסו בין קומות המכללה לעסקים, אספו מפתחות וגלו את דוכני היריד",
     gradient: "linear-gradient(135deg, #1e293b 0%, #78350f 50%, #d4af5f 100%)",
     accentColor: "#f1d896",
-    available: true,
+    // עדיין לא גלוי בדף הירידים עד אישור העסקים המשתתפות — נגיש לבינתיים רק דרך קישור ישיר ל-/b2bfair.
+    // להצגה רגילה בדף: להחזיר ל-true.
+    available: false,
   },
 ];
 
@@ -135,7 +137,7 @@ export default function FairHub() {
 
         {/* Fair cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full">
-          {FAIRS.map((fair, i) => (
+          {FAIRS.filter((fair) => fair.available).map((fair, i) => (
             <motion.button
               key={fair.id}
               onClick={() => navigate(fair.path)}

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore'
+import { db } from '../../../lib/firebase'
 import './App.css'
 import {
   GRAVITY,
@@ -17,6 +19,10 @@ import {
   WORLD_HEIGHT,
   WORLD_WIDTH,
   ROUND_SECONDS,
+  TOP_FLOOR_BONUS_SECONDS,
+  GIFT_POINTS,
+  BOX_GIFT_POINTS,
+  TOP_FLOOR_POINTS_MULTIPLIER,
   TOTAL_KEYS,
   BACKGROUND_IMAGE_URL,
   IMAGE_RENDER_WIDTH,
@@ -29,32 +35,60 @@ import {
 } from './constants'
 import robotSpriteSheet from './assets/robot-sprite-transparent.png'
 import robotClimbSpriteSheet from './assets/robot-sprite-climb-no-ladder.png'
+import robotIdleClosed from './assets/robot-instructor/01-idle-closed.png'
+import robotIdleTalk from './assets/robot-instructor/02-idle-talk.png'
+import robotExplainClosed from './assets/robot-instructor/03-explain-closed.png'
+import robotExplainTalk from './assets/robot-instructor/04-explain-talk.png'
+import robotOpenTalk from './assets/robot-instructor/05-open-talk.png'
+import robotOpenClosed from './assets/robot-instructor/06-open-closed.png'
+import collegeSignBlank from './assets/robot-instructor/sign-blank.png'
 
-// --- מסך פתיחה: רצף בועות דיבור עם אותיות נופלות, ואז טופס מייל ---
+// --- מסך פתיחה: הרובוט המדריך מסביר את חוקי המשחק בבועת דיבור עם אותיות נופלות ---
+// כל שלב: pose (idle/explain/open), lit (האם הפנסים דולקים), ignite (להדליק את
+// הפנסים תוך כדי — הבהוב קצר לפני השלב), lines לטקסט, holdMs לזמן התצוגה
+// (שלב אחרון בלי holdMs = לא מתקדם לבד, זה שלב טופס המייל)
+// idle = הפוזה הפותחת (ידיים למטה, פנסים כבויים). מהשלב הבא ואילך הרובוט "פעיל":
+// הידיים מתחלפות ברציפות בין explain ל-open (ראו armTimer באפקט למטה) כל עוד
+// הוא מדבר, כדי שירגיש הרבה יותר חי ומחווה עם הידיים, לא פוזה קפואה אחת.
 const INTRO_STEPS = [
-  { lines: ['החורף הזה את עושה קפיצה עיסקית'], holdMs: 3200 },
   {
-    lines: [
-      'אספנו לך קורסים ומתנות שיקפיצו לך את העסק ואת הרווחים בע"ה',
-      'נראה כמה תצליחי לקחת....',
-    ],
-    holdMs: 5200,
+    idle: true,
+    lines: ['ברוכים הבאים למכללה לקפיצה עסקית!', `${TOTAL_KEYS} בעלות עסקים פותחות לכם שיעורים במתנה`],
+    holdMs: 4400,
   },
+  { lines: ['כל שלט עם לוגו מחזיק מפתח לשיעור', 'קפצו עליו — והשיעור נפתח לכם :)'], demo: true, holdMs: 5600 },
+  { lines: ['מפתח בתוך קופסה? תנו לה מכה מלמטה!', 'הוא שווה כפול נקודות'], holdMs: 4400 },
+  { lines: [`כמה שיעורים תפתחו ב-${ROUND_SECONDS} שניות?`, 'בסוף כולם נשלחים אליכם למייל'], holdMs: 4400 },
   {
-    lines: [
-      'תיכנסו איתי לבית הספר ותתחילו ללכת',
-      'כל מתנה שתצליחו להקפיץ עליה עם הרובוט — שלכם',
-    ],
-    holdMs: 5200,
-  },
-  {
-    lines: ['לפני שמתחילים', 'רק לאיפה לשלוח לכם את המתנות שתאספו?'],
+    lines: ['איך מפעילים את הרובוט?', 'תנסו עכשיו את החיצים במקלדת'],
+    touchLines: ['איך מפעילים את הרובוט?', 'עם הכפתורים האלה — נסו עכשיו!'],
+    keyboard: true,
   },
 ]
+
+const ROBOT_FRAMES = {
+  idleClosed: robotIdleClosed,
+  idleTalk: robotIdleTalk,
+  explainClosed: robotExplainClosed,
+  explainTalk: robotExplainTalk,
+  openClosed: robotOpenClosed,
+  openTalk: robotOpenTalk,
+}
+
+function robotFrameFor(pose, mouthOpen) {
+  if (pose === 'open') return mouthOpen ? ROBOT_FRAMES.openTalk : ROBOT_FRAMES.openClosed
+  if (pose === 'explain') return mouthOpen ? ROBOT_FRAMES.explainTalk : ROBOT_FRAMES.explainClosed
+  return mouthOpen ? ROBOT_FRAMES.idleTalk : ROBOT_FRAMES.idleClosed
+}
 
 // אותיות הטקסט נופלות פנימה אחת אחרי השנייה (עיכוב מצטבר לפי אינדקס התו).
 // כל מילה עטופה בתג נפרד עם white-space:nowrap כדי שהגלישה לשורה הבאה
 // תתבצע בין מילים, ולא תשבור מילה באמצע בין שתי אותיות.
+// כל רצף שאינו אותיות עבריות (מספר כמו "85", סימני פיסוק, סמיילי כמו ":)")
+// בתוך טקסט עברי מקבל עטיפה מבודדת בכיוון LTR — אחרת הדפדפן הופך את סדר
+// התווים בתוכו (למשל 85 הופך ל-58, ":)" הופך ל-"):") כששוברים אותם לתגים נפרדים.
+const HEBREW_LETTER_RUN = /[א-ת]+|[^א-ת]+/g
+
 function FallingLines({ lines }) {
   let index = 0
   function renderChar(ch) {
@@ -66,18 +100,140 @@ function FallingLines({ lines }) {
       </span>
     )
   }
+  function renderWord(word, key) {
+    const runs = word.match(HEBREW_LETTER_RUN) || [word]
+    return (
+      <span className="intro-bubble__word" key={key}>
+        {runs.map((run, runIndex) =>
+          /[א-ת]/.test(run) ? (
+            [...run].map(renderChar)
+          ) : (
+            <span
+              className="intro-bubble__ltrrun"
+              key={runIndex}
+              style={{ unicodeBidi: 'isolate', direction: 'ltr' }}
+            >
+              {[...run].map(renderChar)}
+            </span>
+          )
+        )}
+      </span>
+    )
+  }
   return lines.map((line, lineIndex) => (
     <p className="intro-bubble__line" key={lineIndex}>
       {line.split(' ').flatMap((word, wordIndex, words) => {
-        const wordSpan = (
-          <span className="intro-bubble__word" key={`w${wordIndex}`}>
-            {[...word].map(renderChar)}
-          </span>
-        )
+        const wordSpan = renderWord(word, `w${wordIndex}`)
         return wordIndex < words.length - 1 ? [wordSpan, ' '] : [wordSpan]
       })}
     </p>
   ))
+}
+
+// הדגמה ליד הרובוט הגדול: הוא קופץ על קופסת מתנה (ראו intro-robot-demo-jump ב-CSS), והיא מתפוצצת.
+// כל התזמון ב-CSS (אותו משך ועיכוב לכל החלקים, כך שהאחוזים ב-keyframes מסונכרנים).
+const DEMO_SPARKS = [
+  [-110, -70], [-70, -120], [0, -140], [70, -120], [110, -70],
+  [-120, 10], [120, 10], [-60, 50], [60, 50], [-20, -90], [30, -100], [0, 60],
+]
+
+function IntroGiftDemo() {
+  return (
+    <div className="intro-demo" aria-hidden="true">
+      <div className="intro-demo__gift">
+        <span className="intro-demo__gift-small">תחרות</span>
+        <span className="intro-demo__gift-big">30,000 ש״ח לפרסום!</span>
+      </div>
+      <div className="intro-demo__flash" />
+      {DEMO_SPARKS.map(([dx, dy], i) => (
+        <span
+          key={i}
+          className="intro-demo__spark"
+          style={{ '--dx': `${dx}px`, '--dy': `${dy}px` }}
+        />
+      ))}
+      <div className="intro-demo__pop">נפתח! 🔓</div>
+    </div>
+  )
+}
+
+// ציור קטן של 3 מקשי החיצים הרלוונטיים (שמאל/למעלה/ימין), עם לולאת הדגמה
+// שמדליקה אותם אחד-אחרי-השני (עיכוב אנימציה שונה לכל מקש) כדי להמחיש ללחוץ.
+const KEYBOARD_KEYS = [
+  { id: 'left', symbol: '←', delay: 0 },
+  { id: 'up', symbol: '↑', delay: 0.5 },
+  { id: 'right', symbol: '→', delay: 1 },
+]
+
+// pressed = אילו חיצים לחוצים ממש עכשיו בפועל (לא רק ההדגמה האוטומטית) —
+// מקש שלחוצים עליו באמת נדלק מיד, במקום לחכות לתור שלו בלולאה.
+function IntroKeyboard({ pressed }) {
+  function keyClass(id) {
+    return `intro-keyboard__key intro-keyboard__key--${id}${pressed?.[id] ? ' intro-keyboard__key--pressed' : ''}`
+  }
+  return (
+    <div className="intro-keyboard">
+      <div className={keyClass('up')} style={{ animationDelay: `${KEYBOARD_KEYS[1].delay}s` }}>
+        {KEYBOARD_KEYS[1].symbol}
+      </div>
+      <div className="intro-keyboard__row">
+        <div className={keyClass('left')} style={{ animationDelay: `${KEYBOARD_KEYS[0].delay}s` }}>
+          {KEYBOARD_KEYS[0].symbol}
+        </div>
+        <div className={keyClass('right')} style={{ animationDelay: `${KEYBOARD_KEYS[2].delay}s` }}>
+          {KEYBOARD_KEYS[2].symbol}
+        </div>
+      </div>
+      <div className="intro-keyboard__caption">↑ קפיצה &nbsp;·&nbsp; ← → הליכה</div>
+    </div>
+  )
+}
+
+// במסך הסיום מרקר תמיד השיעור השלישי ברשימת "שיעורים שמחכים לך" (אם לא נאספה במשחק)
+const PINNED_LESSON = { id: 'b2b-05', index: 2 }
+function withPinnedLesson(gifts) {
+  const pinned = gifts.find((gift) => gift.id === PINNED_LESSON.id)
+  if (!pinned) return gifts
+  const rest = gifts.filter((gift) => gift !== pinned)
+  rest.splice(Math.min(PINNED_LESSON.index, rest.length), 0, pinned)
+  return rest
+}
+
+function introLinesFor(step) {
+  return (IS_TOUCH && step.touchLines) || step.lines
+}
+
+// גרסת המגע של IntroKeyboard: אותם כפתורים כמו במשחק, והלחיצה עליהם מזיזה את
+// הרובוט כמו חיצי המקלדת (שולחים אירוע מקלדת מדומה לאותו מאזין)
+function IntroTouchButtons({ pressed }) {
+  function press(code, isDown) {
+    window.dispatchEvent(new KeyboardEvent(isDown ? 'keydown' : 'keyup', { code }))
+  }
+  function buttonProps(code) {
+    return {
+      type: 'button',
+      onPointerDown: () => press(code, true),
+      onPointerUp: () => press(code, false),
+      onPointerLeave: () => press(code, false),
+    }
+  }
+  return (
+    <div className="intro-touch">
+      <div className="intro-touch__group">
+        <div className="intro-touch__row">
+          <button className={`touch-btn${pressed?.left ? ' touch-btn--pressed' : ''}`} {...buttonProps('ArrowLeft')}>◀</button>
+          <button className={`touch-btn${pressed?.right ? ' touch-btn--pressed' : ''}`} {...buttonProps('ArrowRight')}>▶</button>
+        </div>
+        <span className="intro-touch__caption">הליכה</span>
+      </div>
+      <div className="intro-touch__group">
+        <div className="intro-touch__row">
+          <button className={`touch-btn touch-btn--jump${pressed?.up ? ' touch-btn--pressed' : ''}`} {...buttonProps('ArrowUp')}>⤴</button>
+        </div>
+        <span className="intro-touch__caption">קפיצה</span>
+      </div>
+    </div>
+  )
 }
 
 function playLadderNotes(audioContext, notes, startAt, spacing = 0.075) {
@@ -188,52 +344,72 @@ function playEnemyStompSound(audioContext) {
   burst.stop(startAt + 0.19)
 }
 
-const ENEMY_DEFINITIONS = [
-  {
-    id: 'tax',
-    name: 'מס הכנסה',
-    symbol: '₪',
-    xRatio: 0.3,
-    floor: GROUND_Y,
-    patrolRatio: 0.12,
-    speed: 62,
-    tone: 'tax',
-  },
-  {
-    id: 'client',
-    name: 'לקוח טרדן',
-    symbol: '?',
-    xRatio: 0.72,
-    floor: GROUND_Y,
-    patrolRatio: 0.1,
-    speed: 86,
-    tone: 'client',
-  },
-  {
-    id: 'vat',
-    name: 'מע״מ',
-    symbol: '%',
-    xRatio: 0.44,
-    floor: Math.round(IMAGE_RENDER_HEIGHT * (382 / 587)),
-    patrolRatio: 0.1,
-    speed: 72,
-    tone: 'vat',
-  },
-  {
-    id: 'clock',
-    name: 'אין לי זמן!',
-    symbol: '◷',
-    xRatio: 0.76,
-    floor: Math.round(IMAGE_RENDER_HEIGHT * (210 / 587)),
-    patrolRatio: 0.08,
-    speed: 104,
-    tone: 'clock',
-  },
-]
+// כל האויבים הוסרו מהמשחק — הרשימה ריקה, שאר הקוד (ציור/תנועה/פגיעה) פשוט רץ על רשימה ריקה.
+const ENEMY_DEFINITIONS = []
 
 // קופסאות המתנה מוצקות מכל הכיוונים (גם אחרי שנפתחו, כמו במריו)
 const GIFT_BOX_SOLIDS = LEVEL.giftBoxes.map((box) => ({ ...box, kind: 'box' }))
+// גובהי הרצפות (בלי מדפים), מלמעלה למטה
+const FLOOR_LEVELS = [...new Set(LEVEL.platforms.filter((p) => !p.kind).map((p) => p.y))].sort((a, b) => a - b)
+const PLAYER_MAX_X = Math.min(WORLD_WIDTH, LEVEL.elevator.x + LEVEL.elevator.width) - PLAYER_WIDTH
+// --- שמירת לידים ב-Firestore (אותו מבנה כמו ביריד הקיץ) ---
+// fairs/b2bfair/early_signups — רשימת הדיוור: כל מי שמאשר דיוור (בפתיחה או בסוף)
+// fairs/b2bfair/finale_leads  — מי אסף/בחר אילו מתנות (shopIds = מזהי העסקים)
+const B2B_FAIR_ID = 'b2bfair'
+const REF_PARAM = new URLSearchParams(window.location.search).get('ref') || ''
+
+async function addMailingSignup(email, source) {
+  await addDoc(collection(db, 'fairs', B2B_FAIR_ID, 'early_signups'), {
+    email,
+    marketingConsent: true,
+    source,
+    ref: REF_PARAM,
+    signedUpAt: serverTimestamp(),
+  })
+}
+
 const KEYS_BY_ID = Object.fromEntries(LEVEL.keys.map((key) => [key.id, key]))
+
+// שווי המתנה בנקודות — לפי קופסה/רגיל ולפי הקומה (העליונה כפולה)
+function keyPoints(key) {
+  const base = key.inBox ? BOX_GIFT_POINTS : GIFT_POINTS
+  return key.floorY === FLOOR_LEVELS[0] ? base * TOP_FLOOR_POINTS_MULTIPLIER : base
+}
+const POINTS_BY_COURSE_ID = Object.fromEntries(LEVEL.keys.map((key) => [key.courseId, keyPoints(key)]))
+
+// שיא אישי נשמר בדפדפן בלבד; אם האחסון חסום — פשוט אין שיא
+const BEST_SCORE_STORAGE_KEY = 'b2bfair-best-score'
+function readBestScore() {
+  try {
+    return Number(window.localStorage.getItem(BEST_SCORE_STORAGE_KEY)) || 0
+  } catch {
+    return 0
+  }
+}
+function writeBestScore(score) {
+  try {
+    window.localStorage.setItem(BEST_SCORE_STORAGE_KEY, String(score))
+  } catch {
+    // אחסון חסום (גלישה בסתר וכו') — מוותרים על השיא
+  }
+}
+
+// המייל שאושר לדיוור נשמר בדפדפן, כדי שבכניסה הבאה לא יצטרכו להקליד אותו שוב
+const SAVED_EMAIL_STORAGE_KEY = 'b2bfair-email'
+function readSavedEmail() {
+  try {
+    return window.localStorage.getItem(SAVED_EMAIL_STORAGE_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+function writeSavedEmail(email) {
+  try {
+    window.localStorage.setItem(SAVED_EMAIL_STORAGE_KEY, email)
+  } catch {
+    // אחסון חסום — פשוט יקלידו שוב בפעם הבאה
+  }
+}
 const DOORS_BY_ID = Object.fromEntries(LEVEL.doors.map((door) => [door.id, door]))
 
 // ראשי תיבות משתי המילים הראשונות, בלי סימנים כמו מקף או נקודה
@@ -242,13 +418,61 @@ function initials(name) {
   return (words[0]?.[0] ?? '') + (words[1]?.[0] ?? '')
 }
 
-// לוגו העסק; בלי לוגו — עיגול צבעוני עם ראשי תיבות
+// לוגו העסק; בלי לוגו — עיגול צבעוני עם ראשי תיבות, או עם השם המלא אם הוגדר logoText
 function GiftLogo({ gift }) {
   if (gift.logoUrl) return <img src={gift.logoUrl} alt={gift.businessName} draggable="false" />
+  if (gift.logoText) {
+    return (
+      <span className="gift-logo-fallback gift-logo-fallback--text" style={{ background: gift.color }}>
+        {gift.logoText}
+      </span>
+    )
+  }
   return (
     <span className="gift-logo-fallback" style={{ background: gift.color }}>
       {initials(gift.businessName)}
     </span>
+  )
+}
+
+// שיעור במסך הסיום (עמוד המכללה, בעיצוב של עמוד הקורס ב-schoolframe.net):
+// לחיצה פותחת/נועלת — כלומר מצטרפים או לא למתנה. נעול = אפור עם מנעול.
+function LessonCard({ gift, number, isOpen, onToggle }) {
+  return (
+    <li className="lesson-item">
+      <button
+        type="button"
+        className={`lesson${isOpen ? ' lesson--open' : ''}`}
+        aria-pressed={isOpen}
+        onClick={onToggle}
+        style={{ '--lesson-color': gift.color, animationDelay: `${Math.min(number, 12) * 60}ms` }}
+      >
+        <span className="lesson__media">
+          <span className="lesson__logo">
+            <GiftLogo gift={gift} />
+          </span>
+          <span className="lesson__shade" />
+          <span className="lesson__icon" aria-hidden="true">{isOpen ? '▶' : '🔒'}</span>
+          <span className="lesson__tag">🎁 שיעור מתנה</span>
+        </span>
+        <span className="lesson__body">
+          {!isOpen && (
+            <span className="lesson__cta">
+              <span>לחצו לפתיחה</span>
+            </span>
+          )}
+          <span className="lesson__meta">
+            <span className="lesson__number">שיעור {number}</span>
+            {isOpen && <span className="lesson__check" aria-label="פתוח">✓</span>}
+          </span>
+          <strong className="lesson__title">{gift.giftName}</strong>
+          {gift.giftDescription && (
+            <span className="lesson__desc" title={gift.giftDescription}>{gift.giftDescription}</span>
+          )}
+          <span className="lesson__teacher">עם {gift.businessName}</span>
+        </span>
+      </button>
+    </li>
   )
 }
 
@@ -257,6 +481,53 @@ function playRevealSound(audioContext) {
   const t = audioContext.currentTime
   playLadderNotes(audioContext, [783.99, 987.77, 1174.66, 1567.98], t, 0.07)
   playLadderNotes(audioContext, [1046.5, 1318.51, 1567.98, 2093], t + 0.32, 0.05)
+}
+
+// "תקתוק" רובוטי קצר וחד לכל אות שנופלת בבועת הפתיחה — גל ריבוע (square)
+// נותן אופי דיגיטלי/רובוטי, ומשך קצר מאוד כדי לא ליצור "בוץ" כשכמה חופפות
+const INTRO_BLIP_NOTES = [659.25, 783.99, 880, 987.77, 1174.66, 1318.51, 1479.98]
+function playLetterBlip(audioContext, noteIndex) {
+  if (audioContext?.state !== 'running') return
+  const t = audioContext.currentTime
+  const osc = audioContext.createOscillator()
+  const gain = audioContext.createGain()
+  osc.type = 'square'
+  osc.frequency.setValueAtTime(INTRO_BLIP_NOTES[noteIndex % INTRO_BLIP_NOTES.length], t)
+  gain.gain.setValueAtTime(0.0001, t)
+  gain.gain.exponentialRampToValueAtTime(0.045, t + 0.006)
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.07)
+  osc.connect(gain)
+  gain.connect(audioContext.destination)
+  osc.start(t)
+  osc.stop(t + 0.08)
+}
+
+// "קליק" מכני קצר בכל מעבר בין פוזות הידיים של הרובוט המדריך
+function playArmSwitchBlip(audioContext) {
+  if (audioContext?.state !== 'running') return
+  const t = audioContext.currentTime
+  const osc = audioContext.createOscillator()
+  const gain = audioContext.createGain()
+  const filter = audioContext.createBiquadFilter()
+  osc.type = 'sawtooth'
+  osc.frequency.setValueAtTime(220, t)
+  osc.frequency.exponentialRampToValueAtTime(90, t + 0.09)
+  filter.type = 'lowpass'
+  filter.frequency.value = 1200
+  gain.gain.setValueAtTime(0.0001, t)
+  gain.gain.exponentialRampToValueAtTime(0.05, t + 0.01)
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.1)
+  osc.connect(filter)
+  filter.connect(gain)
+  gain.connect(audioContext.destination)
+  osc.start(t)
+  osc.stop(t + 0.11)
+}
+
+// ריצת טונים עולה נלהבת — "הפעלה" של הרובוט ברגע שהפנסים נדלקים
+function playIgnitePowerUp(audioContext) {
+  if (audioContext?.state !== 'running') return
+  playLadderNotes(audioContext, [392, 523.25, 659.25, 783.99, 1046.5], audioContext.currentTime, 0.09)
 }
 
 function createElevatorState() {
@@ -293,18 +564,90 @@ function createEnemies() {
   })
 }
 
+// סרגל הצד השמאלי (ניקוד, יצירת קשר, חסות) תופס רוחב קבוע, והמשחק מקבל רק את
+// השאר — כך הסרגל לא עולה על המשחק. חייב להתאים ל-.hud ב-App.css.
+// בטלפון לאורך אין רוחב לסרגל צד — הוא הופך לפס עליון (.app-root--hud-top)
+const HUD_WIDTH = 220
+const HUD_WIDTH_NARROW = 118
+const HUD_BAR_HEIGHT = 56
+function isHudTop(windowWidth, windowHeight) {
+  return windowWidth <= 600 && windowHeight > windowWidth
+}
+function hudWidthFor(windowWidth, windowHeight = window.innerHeight) {
+  if (isHudTop(windowWidth, windowHeight)) return 0
+  return windowWidth <= 600 || windowHeight <= 500 ? HUD_WIDTH_NARROW : HUD_WIDTH
+}
+function hudHeightFor(windowWidth, windowHeight = window.innerHeight) {
+  return isHudTop(windowWidth, windowHeight) ? HUD_BAR_HEIGHT : 0
+}
+function gameAreaWidth() {
+  return window.innerWidth - hudWidthFor(window.innerWidth)
+}
+function gameAreaHeight() {
+  return window.innerHeight - hudHeightFor(window.innerWidth)
+}
+
+// בזום של "קומה אחת בגובה המסך" טלפון לאורך רואה רק פס צר מהעולם —
+// לכן הזום מוגבל כך שתמיד רואים לפחות כך וכך גבהי-קומה לרוחב
+const MIN_VISIBLE_WIDTH_IN_FLOORS = 0.9
+
+// הרובוט מתחיל באמצע המסך — אבל במסך צר זה נופל על הדלת הסודית שבקומת
+// הקרקע, שמסתירה אותו, לכן תמיד מימין לה
+function spawnX(viewportWidth) {
+  const door = DOORS_BY_ID['door-ground']
+  return Math.max(door.x + door.width + 40, Math.round(viewportWidth / 2 - PLAYER_WIDTH / 2))
+}
+
+// במכשירי מגע ההוראות מראות את כפתורי המגע במקום חיצי המקלדת
+const IS_TOUCH = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+
 // 'start' -> 'countdown' -> 'playing' -> 'ended'
 function App() {
   const [phase, setPhase] = useState('start')
   const [introStep, setIntroStep] = useState(0)
-  const [introEmail, setIntroEmail] = useState('')
-  const [introConsent, setIntroConsent] = useState(false)
+  const [introFrame, setIntroFrame] = useState(ROBOT_FRAMES.idleClosed)
+  // תגובה חיה לחיצי המקלדת במסך הפתיחה — לא אנימציית הליכה אמיתית, רק
+  // תזוזה/קפיצה קטנה שממחישה שהרובוט "שומע" את החיצים
+  const [introNudge, setIntroNudge] = useState(0)
+  const [introJumping, setIntroJumping] = useState(false)
+  // אילו חיצים לחוצים ממש עכשיו בפועל — כדי להדליק את המקש המתאים בציור
+  // המקלדת באופן מיידי כשמנסים, לא רק בלולאת ההדגמה האוטומטית
+  const [introKeysPressed, setIntroKeysPressed] = useState({ left: false, right: false, up: false })
+  // לחיצה על "התחילו לשחק" פותחת שאלה קצרה אחת (לאן לשלוח את המתנות) לפני
+  // שבאמת נכנסים למשחק — לא חוסם: אפשר להמשיך גם בלי להזין כלום
+  const [showLeadPrompt, setShowLeadPrompt] = useState(false)
+  const [introEmail, setIntroEmail] = useState(readSavedEmail)
+  // מייל שמור = כבר אישרו דיוור בכניסה קודמת
+  const [introConsent, setIntroConsent] = useState(() => readSavedEmail() !== '')
   const [countdownValue, setCountdownValue] = useState(3)
   const [timeLeft, setTimeLeft] = useState(ROUND_SECONDS)
   const [collectedIds, setCollectedIds] = useState(() => new Set())
   const [leadSubmitted, setLeadSubmitted] = useState(false)
   const [giftPreview, setGiftPreview] = useState(null)
+  // גובה הרצפה שהדמות עומדת עליה — לחיצי ⬆ ליד הסולם/המעלית ולמונה הקומות
+  const [currentFloorY, setCurrentFloorY] = useState(GROUND_Y)
+  const [topFloorBonusShown, setTopFloorBonusShown] = useState(false)
+  const [caughtToast, setCaughtToast] = useState(null)
+  const caughtToastTimerRef = useRef(null)
+  // תזכורת "איך משחקים" — בתחילת כל סיבוב, ושוב בכל לחיצת עכבר על אזור המשחק
+  // (מי שמנסה ללחוץ על הלוח כנראה לא יודעת שמשחקים עם החיצים)
+  const [controlsHintId, setControlsHintId] = useState(0)
+  const controlsHintTimerRef = useRef(null)
+  // השיא שהיה לפני הסיבוב הנוכחי + האם נשבר — נקבע במעבר למסך הסיום
+  const [scoreRecord, setScoreRecord] = useState({ previousBest: 0, isNew: false })
   const [claimedGiftIds, setClaimedGiftIds] = useState(() => new Set())
+  // מי שהשאיר מייל בפתיחה לא מתבקש להקליד אותו שוב בסיום (אלא אם לחץ "לשנות")
+  const [introEmailGiven, setIntroEmailGiven] = useState(false)
+  const [editingLeadEmail, setEditingLeadEmail] = useState(false)
+  const [leadEmail, setLeadEmail] = useState(readSavedEmail)
+  const [leadConsent, setLeadConsent] = useState(false)
+  const [leadBusy, setLeadBusy] = useState(false)
+  const [leadError, setLeadError] = useState('')
+  // אימייל שאישר דיוור בפתיחה — ממנו נשמרת ההתקדמות תוך כדי משחק
+  const consentedEmailRef = useRef('')
+  const signedUpEmailsRef = useRef(new Set())
+  const progressDocIdRef = useRef(null)
+  const progressQueueRef = useRef(Promise.resolve())
 
   const viewportRef = useRef(null)
   const worldLayerRef = useRef(null)
@@ -320,7 +663,7 @@ function App() {
 
   // מצב פיזיקלי חי — לא ב-state כדי לא לגרום ל-re-render כל פריים
   const game = useRef({
-    x: Math.max(0, Math.round(window.innerWidth / 2 - PLAYER_WIDTH / 2)),
+    x: spawnX(gameAreaWidth()),
     y: GROUND_Y - PLAYER_HEIGHT,
     vx: 0,
     vy: 0,
@@ -340,8 +683,8 @@ function App() {
     facing: 1,
     cameraX: 0,
     cameraY: 0,
-    viewportWidth: window.innerWidth,
-    viewportHeight: window.innerHeight,
+    viewportWidth: gameAreaWidth(),
+    viewportHeight: gameAreaHeight(),
     keysDown: new Set(),
     collected: new Set(),
     lastFootstepAt: 0,
@@ -393,8 +736,8 @@ function App() {
   // --- מדידת גודל המסך בפועל ---
   useEffect(() => {
     function handleResize() {
-      game.current.viewportWidth = window.innerWidth
-      game.current.viewportHeight = window.innerHeight
+      game.current.viewportWidth = gameAreaWidth()
+      game.current.viewportHeight = gameAreaHeight()
       setViewportSize({ width: window.innerWidth, height: window.innerHeight })
     }
     window.addEventListener('resize', handleResize)
@@ -409,7 +752,10 @@ function App() {
     // זום דינמי: תמיד מציג בדיוק קומה אחת (שליש מגובה העולם) בגובה המסך,
     // יחסי לגודל המסך בפועל. "חלון הצפייה" בתוך העולם הוא גודל המסך חלקי הזום.
     const floorHeight = (WORLD_HEIGHT / 3) * FLOORS_VISIBLE_PER_SCREEN
-    const zoom = g.viewportHeight / floorHeight
+    const zoom = Math.min(
+      g.viewportHeight / floorHeight,
+      g.viewportWidth / (floorHeight * MIN_VISIBLE_WIDTH_IN_FLOORS)
+    )
     g.zoom = zoom
     const vw = g.viewportWidth / zoom
     const vh = g.viewportHeight / zoom
@@ -512,10 +858,57 @@ function App() {
     const el = keyElementsRef.current[keyId]
     if (el) el.style.display = 'none'
     spawnConfetti(key.x + 16, key.y + 16, key.gift.color)
+    const points = keyPoints(key)
+    if (worldLayerRef.current) {
+      const float = document.createElement('div')
+      float.className = 'points-float'
+      float.textContent = `+${points}`
+      float.style.left = `${key.x + 16}px`
+      float.style.top = `${key.y - 10}px`
+      worldLayerRef.current.appendChild(float)
+      window.setTimeout(() => float.remove(), 1100)
+    }
+    // "נכנס לסל" — שהמתנה עצמה תרגיש כמו הפרס, לא רק הנקודות
+    window.clearTimeout(caughtToastTimerRef.current)
+    setCaughtToast({ id: keyId, giftName: key.gift.giftName })
+    caughtToastTimerRef.current = window.setTimeout(() => setCaughtToast(null), 2000)
     setCollectedIds((prev) => new Set(prev).add(courseId))
     setClaimedGiftIds((previous) => new Set(previous).add(courseId))
     setGiftPreview(null)
+    saveProgress()
   }, [])
+
+  // שמירה מתקדמת: מי שאישר דיוור בפתיחה — כל מפתח שנאסף נשמר מיד, כדי שלא
+  // יאבד גם אם עוזבים באמצע. השמירות בתור כדי שה-addDoc הראשון יסתיים לפני update.
+  function saveProgress() {
+    const email = consentedEmailRef.current
+    if (!email) return
+    const shopIds = [...game.current.collected].map((keyId) => KEYS_BY_ID[keyId].courseId)
+    progressQueueRef.current = progressQueueRef.current.then(async () => {
+      try {
+        if (progressDocIdRef.current) {
+          await updateDoc(doc(db, 'fairs', B2B_FAIR_ID, 'finale_leads', progressDocIdRef.current), {
+            shopIds,
+            caughtCount: shopIds.length,
+            updatedAt: serverTimestamp(),
+          })
+        } else {
+          const ref = await addDoc(collection(db, 'fairs', B2B_FAIR_ID, 'finale_leads'), {
+            email,
+            name: '',
+            shopIds,
+            caughtCount: shopIds.length,
+            stage: 'progress',
+            ref: REF_PARAM,
+            claimedAt: serverTimestamp(),
+          })
+          progressDocIdRef.current = ref.id
+        }
+      } catch (err) {
+        console.error('[b2bfair progress]', err)
+      }
+    })
+  }
 
   // מכה בקופסת מתנה מלמטה: הקופסה קופצת, מפתח עף ממנה למעלה ונאסף
   const openGiftBox = useCallback((box) => {
@@ -762,7 +1155,8 @@ function App() {
 
       // עדכון מיקום X עם התנגשות אופקית פשוטה מול משטחים
       let nextX = g.x + g.vx * dt
-      nextX = Math.max(0, Math.min(WORLD_WIDTH - PLAYER_WIDTH, nextX))
+      // הקצה הימני של העולם הוא הקיר הימני של פיר המעלית — אין מה לעשות מימינו
+      nextX = Math.max(0, Math.min(PLAYER_MAX_X, nextX))
       // קופסאות מתנה חוסמות מהצדדים
       for (const box of GIFT_BOX_SOLIDS) {
         const overlapsY = g.y + PLAYER_HEIGHT > box.y && g.y < box.y + box.height
@@ -770,6 +1164,26 @@ function App() {
         if (!overlapsY || !overlapsX) continue
         if (g.vx > 0) nextX = box.x - PLAYER_WIDTH
         else if (g.vx < 0) nextX = box.x + box.width
+      }
+      // פיר המעלית סגור כמו דלתות מעלית: נכנסים/יוצאים רק כשהמעלית עומדת בקומה
+      // שלך (רגלי הדמות בגובה הרצפה שלה, או קצת מעליה בקפיצה). אחרת הפיר חוסם
+      // מהצדדים — מבחוץ אי אפשר להיכנס, ומבפנים (בנסיעה) אי אפשר לצאת.
+      {
+        const shaftLeft = elevatorConfig.x
+        const shaftRight = elevatorConfig.x + elevatorConfig.width
+        const elevatorStopped = elevatorConfig.stops.some((stopY) => Math.abs(elevator.y - stopY) < 0.5)
+        const feetY = g.y + PLAYER_HEIGHT
+        const atElevatorFloor = elevatorStopped && feetY <= elevator.y + 2 && feetY >= elevator.y - 140
+        const overlapsNext = nextX + PLAYER_WIDTH > shaftLeft && nextX < shaftRight
+        if (!atElevatorFloor && overlapsNext) {
+          const wasInside = g.x + PLAYER_WIDTH > shaftLeft && g.x < shaftRight
+          const centerInside = g.x + PLAYER_WIDTH / 2 >= shaftLeft && g.x + PLAYER_WIDTH / 2 <= shaftRight
+          if (wasInside && centerInside) {
+            nextX = Math.max(shaftLeft, Math.min(shaftRight - PLAYER_WIDTH, nextX))
+          } else {
+            nextX = g.x + PLAYER_WIDTH / 2 < (shaftLeft + shaftRight) / 2 ? shaftLeft - PLAYER_WIDTH : shaftRight
+          }
+        }
       }
       g.x = nextX
 
@@ -922,10 +1336,30 @@ function App() {
       // Preview nearby gifts; collect only by landing on a key from above.
       let nearbyKey = null
       let collectedKeyThisFrame = false
+      // הבועה מוצגת לפי הקומה שהדמות נמצאת בה (הרצפה הקרובה מתחת לרגליים),
+      // ולא לפי מרחק אנכי — כך גם מפתח שתלוי גבוה מראה את המתנה כשעוברים מתחתיו
+      const feetY = g.y + PLAYER_HEIGHT
+      const floorUnderPlayer = FLOOR_LEVELS.find((floorY) => floorY >= feetY - 2) ?? GROUND_Y
+      if (g.floorY !== floorUnderPlayer) {
+        g.floorY = floorUnderPlayer
+        setCurrentFloorY(floorUnderPlayer)
+        if (floorUnderPlayer === FLOOR_LEVELS[0] && !g.topFloorBonusGiven) {
+          g.topFloorBonusGiven = true
+          setTimeLeft((t) => t + TOP_FLOOR_BONUS_SECONDS)
+          setTopFloorBonusShown(true)
+          setTimeout(() => setTopFloorBonusShown(false), 2200)
+        }
+      }
       for (const key of LEVEL.keys) {
-        if (key.inBox || g.collected.has(key.id)) continue
+        if (g.collected.has(key.id)) continue
         const dx = g.x + PLAYER_WIDTH / 2 - (key.x + 16)
-        const dy = g.y + PLAYER_HEIGHT / 2 - (key.y + 16)
+        // מפתח בתוך קופסה: רק מציגים את המתנה כשעוברים ליד; נאסף רק במכה בקופסה
+        if (key.inBox) {
+          if (!nearbyKey && Math.abs(dx) < 100 && key.floorY === floorUnderPlayer) {
+            nearbyKey = key
+          }
+          continue
+        }
         const overlapsKeyX =
           g.x + PLAYER_WIDTH > key.x && g.x < key.x + 32
         const landedOnKey =
@@ -939,7 +1373,7 @@ function App() {
           collectedKeyThisFrame = true
           break
         }
-        if (!nearbyKey && Math.abs(dx) < 100 && Math.abs(dy) < 120) {
+        if (!nearbyKey && Math.abs(dx) < 100 && key.floorY === floorUnderPlayer) {
           nearbyKey = key
         }
       }
@@ -954,6 +1388,17 @@ function App() {
       } else if (g.nearbyKeyId) {
         g.nearbyKeyId = null
         setGiftPreview(null)
+      }
+
+      // רמז "קפצו מלמטה" מעל קופסת מתנה סגורה כשעומדים בקומה שלה וקרוב אליה
+      for (const box of LEVEL.giftBoxes) {
+        const element = giftBoxElementsRef.current[box.id]
+        if (!element) continue
+        const isNear =
+          !g.openedBoxes.has(box.id) &&
+          floorUnderPlayer === box.floorY &&
+          Math.abs(g.x + PLAYER_WIDTH / 2 - (box.x + box.width / 2)) < 120
+        element.classList.toggle('gift-box--near', isNear)
       }
 
       // רמז ⬇ מעל דלת סודית כשעומדים מולה
@@ -1001,19 +1446,170 @@ function App() {
     if (phase === 'playing') setTimeLeft(ROUND_SECONDS)
   }, [phase])
 
-  // --- רצף בועות הדיבור במסך הפתיחה: מתקדם לבד, ונעצר בשלב האחרון (טופס המייל) ---
+  // בכניסה למסך הסיום: משווים לשיא האישי ושומרים אם נשבר
+  useEffect(() => {
+    if (phase !== 'ended') return
+    const finalScore = [...game.current.collected].reduce(
+      (sum, keyId) => sum + keyPoints(KEYS_BY_ID[keyId]),
+      0
+    )
+    const previousBest = readBestScore()
+    const isNew = finalScore > previousBest
+    if (isNew) writeBestScore(finalScore)
+    setScoreRecord({ previousBest, isNew })
+  }, [phase])
+
+  // דפדפנים חוסמים צליל לפני מחווה של המשתמש — בועת הפתיחה מתקדמת לבד בלי
+  // קליק, אז פותחים את ה-AudioContext בהקדם האפשרי: בלחיצה/מגע/מקש ראשונים.
   useEffect(() => {
     if (phase !== 'start') return
-    const holdMs = INTRO_STEPS[introStep]?.holdMs
-    if (!holdMs) return
-    const timer = window.setTimeout(() => setIntroStep((s) => s + 1), holdMs)
-    return () => window.clearTimeout(timer)
+    function unlock() {
+      ensureAudioContext()
+      window.removeEventListener('pointerdown', unlock)
+      window.removeEventListener('keydown', unlock)
+    }
+    window.addEventListener('pointerdown', unlock)
+    window.addEventListener('keydown', unlock)
+    return () => {
+      window.removeEventListener('pointerdown', unlock)
+      window.removeEventListener('keydown', unlock)
+    }
+  }, [phase])
+
+  // הרובוט במסך הפתיחה מגיב בפועל לחיצי המקלדת — לא אנימציית הליכה, רק
+  // תזוזה קטנה לצדדים וקפיצה קלה, כדי שבאמת ירגישו שהוא "שומע" את החיצים
+  useEffect(() => {
+    if (phase !== 'start') return
+    let jumpTimer = null
+    function onKeyDown(e) {
+      if (e.code === 'ArrowLeft') {
+        setIntroNudge((n) => Math.max(n - 18, -70))
+        setIntroKeysPressed((k) => ({ ...k, left: true }))
+      } else if (e.code === 'ArrowRight') {
+        setIntroNudge((n) => Math.min(n + 18, 70))
+        setIntroKeysPressed((k) => ({ ...k, right: true }))
+      } else if ((e.code === 'ArrowUp' || e.code === 'Space') && !e.repeat) {
+        setIntroJumping(true)
+        setIntroKeysPressed((k) => ({ ...k, up: true }))
+        playArmSwitchBlip(audioContextRef.current)
+        window.clearTimeout(jumpTimer)
+        jumpTimer = window.setTimeout(() => setIntroJumping(false), 380)
+      }
+    }
+    function onKeyUp(e) {
+      if (e.code === 'ArrowLeft') setIntroKeysPressed((k) => ({ ...k, left: false }))
+      else if (e.code === 'ArrowRight') setIntroKeysPressed((k) => ({ ...k, right: false }))
+      else if (e.code === 'ArrowUp' || e.code === 'Space') setIntroKeysPressed((k) => ({ ...k, up: false }))
+    }
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.clearTimeout(jumpTimer)
+    }
+  }, [phase])
+
+  // --- רצף בועות הדיבור במסך הפתיחה: מתקדם לבד, ונעצר בשלב האחרון (טופס המייל) ---
+  // שלב ה-idle: ידיים למטה, פנסים כבויים, בלי תנועה. מהשלב הבא (אחרי הבהוב
+  // הדלקת הפנסים) ואילך הידיים מתחלפות ברציפות בין explain ל-open כל 480ms
+  // כל עוד הוא "מדבר" — זה מה שנותן את התחושה של מחוות ידיים פעילות, לא
+  // פוזה קפואה. הפה מתחלף closed/talk כל 110ms במקביל, וחוזר לסגור בסוף.
+  useEffect(() => {
+    if (phase !== 'start') return
+    const step = INTRO_STEPS[introStep]
+    let mouthTimer = null
+    let armTimer = null
+    let advanceTimer = null
+    let flickerTimer = null
+    let closeTimer = null
+    let letterTimers = []
+    let cancelled = false
+    let mouthOpen = false
+    let armPose = 'explain'
+
+    function currentPose() {
+      return step.idle ? 'idle' : armPose
+    }
+
+    function startTalking() {
+      mouthOpen = false
+      setIntroFrame(robotFrameFor(currentPose(), false))
+      mouthTimer = window.setInterval(() => {
+        mouthOpen = !mouthOpen
+        setIntroFrame(robotFrameFor(currentPose(), mouthOpen))
+      }, 110)
+      if (!step.idle) {
+        armTimer = window.setInterval(() => {
+          armPose = armPose === 'explain' ? 'open' : 'explain'
+          playArmSwitchBlip(audioContextRef.current)
+        }, 480)
+      }
+      // תקתוק רובוטי לכל אות, באותו תזמון מצטבר (32ms) כמו אנימציית הנפילה
+      const letterCount = introLinesFor(step).reduce((sum, line) => sum + line.replace(/ /g, '').length, 0)
+      for (let i = 0; i < letterCount; i++) {
+        letterTimers.push(
+          window.setTimeout(() => playLetterBlip(audioContextRef.current, i), i * 32)
+        )
+      }
+      if (step.holdMs) {
+        advanceTimer = window.setTimeout(() => {
+          window.clearInterval(mouthTimer)
+          window.clearInterval(armTimer)
+          setIntroFrame(robotFrameFor(currentPose(), false))
+          if (!cancelled) setIntroStep((s) => s + 1)
+        }, step.holdMs)
+      } else {
+        closeTimer = window.setTimeout(() => {
+          window.clearInterval(mouthTimer)
+          window.clearInterval(armTimer)
+          setIntroFrame(robotFrameFor(currentPose(), false))
+        }, 1800)
+      }
+    }
+
+    // הבהוב הדלקת הפנסים קורה פעם אחת, במעבר מה-idle לשלב ה"פעיל" הראשון
+    if (introStep === 1) {
+      setIntroFrame(ROBOT_FRAMES.idleClosed)
+      playIgnitePowerUp(audioContextRef.current)
+      let n = 0
+      flickerTimer = window.setInterval(() => {
+        n += 1
+        setIntroFrame(n % 2 === 1 ? ROBOT_FRAMES.explainClosed : ROBOT_FRAMES.idleClosed)
+        if (n >= 5) {
+          window.clearInterval(flickerTimer)
+          if (!cancelled) startTalking()
+        }
+      }, 110)
+    } else {
+      startTalking()
+    }
+
+    return () => {
+      cancelled = true
+      window.clearInterval(mouthTimer)
+      window.clearInterval(armTimer)
+      window.clearInterval(flickerTimer)
+      window.clearTimeout(advanceTimer)
+      window.clearTimeout(closeTimer)
+      letterTimers.forEach(window.clearTimeout)
+    }
   }, [phase, introStep])
 
-  function handleIntroSubmit(e) {
-    e.preventDefault()
-    startGame()
+  function flashControlsHint(ms = 4000) {
+    window.clearTimeout(controlsHintTimerRef.current)
+    setControlsHintId(Date.now())
+    controlsHintTimerRef.current = window.setTimeout(() => setControlsHintId(0), ms)
   }
+
+  useEffect(() => {
+    if (phase !== 'playing') return
+    flashControlsHint()
+    return () => {
+      window.clearTimeout(controlsHintTimerRef.current)
+      setControlsHintId(0)
+    }
+  }, [phase])
 
   // --- ספירה לאחור לפני התחלה ---
   useEffect(() => {
@@ -1032,7 +1628,7 @@ function App() {
     return () => clearInterval(interval)
   }, [phase])
 
-  function startGame() {
+  function ensureAudioContext() {
     if (!audioContextRef.current) {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext
       if (AudioContextClass) audioContextRef.current = new AudioContextClass()
@@ -1040,11 +1636,16 @@ function App() {
     if (audioContextRef.current?.state === 'suspended') {
       audioContextRef.current.resume()
     }
+  }
 
-    game.current.x = Math.max(
-      0,
-      Math.round(game.current.viewportWidth / 2 - PLAYER_WIDTH / 2)
-    )
+  function startGame() {
+    ensureAudioContext()
+
+    game.current.topFloorBonusGiven = false
+    setTopFloorBonusShown(false)
+    setCaughtToast(null)
+
+    game.current.x = spawnX(game.current.viewportWidth)
     game.current.y = GROUND_Y - PLAYER_HEIGHT
     game.current.vx = 0
     game.current.vy = 0
@@ -1060,9 +1661,20 @@ function App() {
     game.current.downWasDown = false
     game.current.downTapped = false
     game.current.elevator = createElevatorState()
-    game.current.openedBoxes = new Set()
-    for (const element of Object.values(giftBoxElementsRef.current)) {
-      element?.classList.remove('gift-box--opened', 'gift-box--bump')
+    // "שחקו שוב" ממשיך מאיפה שעצרו: מפתחות שכבר נאספו (והמתנות שנבחרו) נשמרים,
+    // והקופסאות שהמפתח שלהן כבר נאסף נשארות פתוחות — אוספים רק את מה שעוד לא
+    const alreadyCollected = game.current.collected
+    game.current.openedBoxes = new Set(
+      LEVEL.giftBoxes.filter((box) => alreadyCollected.has(box.keyId)).map((box) => box.id)
+    )
+    for (const box of LEVEL.giftBoxes) {
+      const element = giftBoxElementsRef.current[box.id]
+      element?.classList.remove('gift-box--bump')
+      element?.classList.toggle('gift-box--opened', game.current.openedBoxes.has(box.id))
+    }
+    for (const key of LEVEL.keys) {
+      const element = keyElementsRef.current[key.id]
+      if (element) element.style.display = alreadyCollected.has(key.id) ? 'none' : ''
     }
     game.current.facing = 1
     game.current.cameraX = 0
@@ -1082,12 +1694,27 @@ function App() {
       }
     }
     footstepIndexRef.current = 0
-    game.current.collected = new Set()
-    setCollectedIds(new Set())
-    setClaimedGiftIds(new Set())
     setGiftPreview(null)
     setLeadSubmitted(false)
+    setLeadError('')
     setPhase('countdown')
+  }
+
+  function handleIntroSubmit(e) {
+    e.preventDefault()
+    const email = introEmail.trim()
+    if (email && introConsent) {
+      consentedEmailRef.current = email
+      setLeadEmail(email)
+      setLeadConsent(true)
+      setIntroEmailGiven(true)
+      writeSavedEmail(email)
+      if (!signedUpEmailsRef.current.has(email)) {
+        signedUpEmailsRef.current.add(email)
+        addMailingSignup(email, 'intro').catch((err) => console.error('[b2bfair early_signup]', err))
+      }
+    }
+    startGame()
   }
 
   function handleTouchControl(action, isDown) {
@@ -1105,10 +1732,41 @@ function App() {
     else game.current.keysDown.delete(code)
   }
 
-  function handleLeadSubmit(e) {
+  async function handleLeadSubmit(e) {
     e.preventDefault()
-    // TODO: לחבר ל-API אמיתי (כמו saveLead בפרויקט Gift-Fair) כשיהיה backend למשחק הזה
-    setLeadSubmitted(true)
+    const email = leadEmail.trim()
+    if (!email || !leadConsent || leadBusy) return
+    setLeadBusy(true)
+    setLeadError('')
+    try {
+      await addDoc(collection(db, 'fairs', B2B_FAIR_ID, 'finale_leads'), {
+        email,
+        name: '',
+        shopIds: [...claimedGiftIds],
+        caughtCount: collectedIds.size,
+        marketingConsent: true,
+        stage: 'final',
+        ref: REF_PARAM,
+        claimedAt: serverTimestamp(),
+      })
+      writeSavedEmail(email)
+      if (!signedUpEmailsRef.current.has(email)) {
+        signedUpEmailsRef.current.add(email)
+        await addMailingSignup(email, 'end').catch((err) => console.error('[b2bfair early_signup]', err))
+      }
+      // מייל תודה (Cloud Function sendB2BThankYou) — כשל במייל לא מכשיל את השליחה
+      fetch('/api/b2b-thank-you', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      }).catch((err) => console.error('[b2bfair thank-you email]', err))
+      setLeadSubmitted(true)
+    } catch (err) {
+      console.error('[b2bfair finale]', err)
+      setLeadError('משהו השתבש בשליחה — נסו שוב בעוד רגע')
+    } finally {
+      setLeadBusy(false)
+    }
   }
 
   function toggleGiftSelection(giftId) {
@@ -1123,16 +1781,47 @@ function App() {
   const keysCollectedCount = collectedIds.size
   const giftsClaimedCount = claimedGiftIds.size
   const collectedGifts = COURSES.filter((course) => collectedIds.has(course.id))
-  const uncollectedGifts = COURSES.filter((course) => !collectedIds.has(course.id))
+  const uncollectedGifts = withPinnedLesson(COURSES.filter((course) => !collectedIds.has(course.id)))
   const formattedTime = `${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, '0')}`
+  const score = [...collectedIds].reduce((sum, courseId) => sum + POINTS_BY_COURSE_ID[courseId], 0)
+  // FLOOR_LEVELS ממוינות מלמעלה למטה, אז הקרקע היא קומה 1
+  const currentFloorNumber = FLOOR_LEVELS.length - FLOOR_LEVELS.indexOf(currentFloorY)
+  // מפתחות שעוד לא נאספו בקומות שמעל הדמות — מעודדים לעלות (בקומות העליונות אוספים פחות)
+  const giftsAboveCount = LEVEL.keys.filter(
+    (key) => key.floorY < currentFloorY && !collectedIds.has(key.courseId)
+  ).length
+  // חיצי ⬆ בתחתית כל סולם ובתחנת המעלית שבקומה הנוכחית, כל עוד יש מתנות למעלה
+  const upHints =
+    giftsAboveCount > 0
+      ? [
+          ...LEVEL.ladders
+            .filter((ladder) => ladder.bottomY === currentFloorY)
+            .map((ladder) => ({ id: `ladder-${ladder.x}`, centerX: ladder.x + ladder.width / 2, floorY: ladder.bottomY })),
+          {
+            id: 'elevator',
+            centerX: LEVEL.elevator.x + LEVEL.elevator.width / 2,
+            floorY: currentFloorY,
+          },
+        ]
+      : []
 
   return (
-    <div className="app-root">
+    <div
+      className={`app-root${isHudTop(viewportSize.width, viewportSize.height) ? ' app-root--hud-top' : ''}`}
+      style={{
+        '--hud-w': `${hudWidthFor(viewportSize.width, viewportSize.height)}px`,
+        '--hud-h': `${hudHeightFor(viewportSize.width, viewportSize.height)}px`,
+      }}
+    >
       {phase === 'start' && (
         <div className="scene scene--center intro-scene">
-          <div className="intro-banner">ברוכים הבאים לבית הספר לעסקים</div>
+          <div className="intro-banner">
+            <img className="intro-banner__sign" src={collegeSignBlank} alt="" />
+            <span className="intro-banner__text">המכללה לקפיצה עסקית</span>
+          </div>
 
-          <div className="intro-stage">
+          <div className={`intro-stage${INTRO_STEPS[introStep].demo ? ' intro-stage--demo' : ''}`}>
+            {INTRO_STEPS[introStep].demo && <IntroGiftDemo />}
             <AnimatePresence mode="wait">
               <motion.div
                 key={introStep}
@@ -1142,39 +1831,78 @@ function App() {
                 exit={{ opacity: 0, y: -18, scale: 0.96 }}
                 transition={{ duration: 0.35 }}
               >
-                <FallingLines lines={INTRO_STEPS[introStep].lines} />
+                <FallingLines lines={introLinesFor(INTRO_STEPS[introStep])} />
+                {INTRO_STEPS[introStep].keyboard &&
+                  (IS_TOUCH ? (
+                    <IntroTouchButtons pressed={introKeysPressed} />
+                  ) : (
+                    <IntroKeyboard pressed={introKeysPressed} />
+                  ))}
               </motion.div>
             </AnimatePresence>
-            <div className="intro-robot" style={{ backgroundImage: `url(${robotSpriteSheet})` }} />
+            <img
+              className={`intro-robot${INTRO_STEPS[introStep].idle ? '' : ' intro-robot--active'}`}
+              src={introFrame}
+              alt="הרובוט המדריך"
+              style={{
+                transform: `translateY(calc(-50% + ${introJumping ? -46 : 0}px)) translateX(${introNudge}px)`,
+              }}
+            />
           </div>
 
-          {introStep === INTRO_STEPS.length - 1 && (
-            <form className="lead-form intro-lead-form" onSubmit={handleIntroSubmit}>
-              <input
-                type="email"
-                placeholder="אימייל"
-                value={introEmail}
-                onChange={(e) => setIntroEmail(e.target.value)}
-              />
-              <label className="consent-check">
+          {/* למי שלא רוצה לשחק — ישר למסך השיעורים, שם אפשר לפתוח את כולם */}
+          {!showLeadPrompt && (
+            <button type="button" className="intro-skip-btn" onClick={() => setPhase('ended')}>
+              לדלג ישר לשיעורים ←
+            </button>
+          )}
+
+          {!showLeadPrompt && (
+            <button
+              type="button"
+              className="primary-btn intro-start-btn"
+              onClick={() => setShowLeadPrompt(true)}
+            >
+              התחילו לשחק
+            </button>
+          )}
+
+          {showLeadPrompt && (
+            <div className="intro-lead-overlay">
+              <form className="lead-form intro-lead-overlay__card" onSubmit={handleIntroSubmit}>
+                <div className="intro-lead-overlay__heading">שניה ⏳</div>
+                <div className="intro-lead-overlay__question">לאן לשלוח לכם את השיעורים שתפתחו?</div>
                 <input
-                  type="checkbox"
-                  checked={introConsent}
-                  onChange={(e) => setIntroConsent(e.target.checked)}
+                  type="email"
+                  placeholder="אימייל"
+                  value={introEmail}
+                  onChange={(e) => setIntroEmail(e.target.value)}
                 />
-                <span>
-                  ברור שמאשר.ת קבלת דיוור מבעלות העסקים שאתפוס את המתנות שלהן, וממנהלות היריד ד.
-                  זילברשטיין ויעל פינגולד
-                </span>
-              </label>
-              <button
-                type="submit"
-                className="primary-btn"
-                disabled={introEmail.trim() !== '' && !introConsent}
-              >
-                התחילו לשחק
-              </button>
-            </form>
+                <label className="consent-check">
+                  <input
+                    type="checkbox"
+                    checked={introConsent}
+                    onChange={(e) => setIntroConsent(e.target.checked)}
+                  />
+                  <span>
+                    ברור שמאשר.ת קבלת דיוור מבעלות העסקים שאפתח את השיעורים שלהן, וממנהלות היריד ד.
+                    זילברשטיין ויעל פיינגולד
+                  </span>
+                </label>
+                <div className="intro-lead-overlay__controls">
+                  {IS_TOUCH
+                    ? '🎮 משחקים עם הכפתורים שבתחתית המסך'
+                    : '🎮 משחקים עם החיצים במקלדת: ⬅️ ➡️ הליכה · ⬆️ קפיצה'}
+                </div>
+                <button
+                  type="submit"
+                  className="primary-btn intro-lead-overlay__submit"
+                  disabled={introEmail.trim() !== '' && !introConsent}
+                >
+                  התחילו לשחק
+                </button>
+              </form>
+            </div>
           )}
         </div>
       )}
@@ -1185,8 +1913,63 @@ function App() {
         </div>
       )}
 
+      {/* סרגל צד נפרד בשמאל — כמו בשאר הירידים: ניקוד, יצירת קשר וחסות.
+          המשחק (game-viewport) מתחיל מימינו ולא נכנס מתחתיו. */}
       {(phase === 'playing' || phase === 'countdown') && (
-        <div className="game-viewport" ref={viewportRef}>
+        <aside className="hud" ref={hudRef}>
+          <div className="hud__title">המכללה לקפיצה עסקית</div>
+
+          <div className="hud__stats">
+            <div className={`hud-pill${topFloorBonusShown ? ' hud-pill--bonus' : ''}`}>
+              <span className="hud-pill__label">⏱ זמן</span>
+              <span className="hud-pill__value">{formattedTime}</span>
+            </div>
+            <div className="hud-pill">
+              <span className="hud-pill__label">🔑 מפתחות</span>
+              <span className="hud-pill__value">{keysCollectedCount} / {TOTAL_KEYS}</span>
+            </div>
+            <div className="hud-pill hud-pill--basket" key={`score-${score}`}>
+              <span className="hud-pill__label">⭐ נקודות</span>
+              <span className="hud-pill__value">{score}</span>
+            </div>
+            <div className="hud-pill hud-pill--floor">
+              <span className="hud-pill__label">🏢 קומה</span>
+              <span className="hud-pill__value">{currentFloorNumber}</span>
+            </div>
+            {giftsAboveCount > 0 && (
+              <div className="hud-above">⬆ עוד {giftsAboveCount} מפתחות למעלה</div>
+            )}
+          </div>
+
+          <div className="hud__bottom">
+            <a className="hud-contact" href="mailto:dvoraz@schoolframe.net">
+              <span className="hud-contact__icon" aria-hidden="true">✉️</span>
+              <span className="hud-contact__title">בעל עסק? צור קשר</span>
+              <span className="hud-contact__email" dir="ltr">dvoraz@schoolframe.net</span>
+            </a>
+
+            <div className="hud-sponsor">
+              <span className="hud-sponsor__label">בשיתוף</span>
+              <img
+                className="hud-sponsor__logo"
+                src="/b2bfair/logos/b2b-24.png"
+                alt="יעל פיינגולד"
+                draggable={false}
+              />
+              <span className="hud-sponsor__name">יעל פיינגולד</span>
+            </div>
+          </div>
+        </aside>
+      )}
+
+      {(phase === 'playing' || phase === 'countdown') && (
+        <div
+          className="game-viewport"
+          ref={viewportRef}
+          onPointerDown={(e) => {
+            if (phase === 'playing' && !e.target.closest('button')) flashControlsHint()
+          }}
+        >
           <div className="parallax-layer parallax-sky" />
           <div
             className="parallax-layer parallax-far"
@@ -1238,6 +2021,17 @@ function App() {
               />
             ))}
 
+            {phase === 'playing' &&
+              upHints.map((hint) => (
+                <div
+                  key={hint.id}
+                  className="up-hint"
+                  style={{ left: hint.centerX, top: hint.floorY }}
+                >
+                  ⬆
+                </div>
+              ))}
+
             <div
               className="elevator-shaft"
               style={{
@@ -1272,6 +2066,14 @@ function App() {
                   height: door.height,
                 }}
               >
+                <span className="secret-door__glow" />
+                <span className="secret-door__portal" />
+                <span className="secret-door__leaf secret-door__leaf--left" />
+                <span className="secret-door__leaf secret-door__leaf--right" />
+                <span className="secret-door__gem" />
+                <span className="secret-door__spark secret-door__spark--1" />
+                <span className="secret-door__spark secret-door__spark--2" />
+                <span className="secret-door__spark secret-door__spark--3" />
                 <span className="secret-door__hint">⬇</span>
               </div>
             ))}
@@ -1290,7 +2092,11 @@ function App() {
                   height: box.height,
                 }}
               >
-                <span className="gift-box__icon">🎁</span>
+                <span className="gift-box__logo">
+                  <GiftLogo gift={KEYS_BY_ID[box.keyId].gift} />
+                </span>
+                <span className="gift-box__icon" aria-hidden="true">🎁</span>
+                <span className="gift-box__hint">⬆ קפצו מלמטה!</span>
               </div>
             ))}
 
@@ -1304,7 +2110,7 @@ function App() {
                 style={{ left: k.x, top: k.y }}
                 title={`${k.gift.businessName} — ${k.gift.giftName}`}
               >
-                <span className="key-item__logo">
+                <span className={`key-item__logo${k.gift.wideSign ? ' key-item__logo--wide' : ''}`}>
                   <GiftLogo gift={k.gift} />
                 </span>
                 <span className="key-item__key" aria-hidden="true">🔑</span>
@@ -1346,15 +2152,43 @@ function App() {
 
           {phase === 'playing' && (
             <>
-              <div className="hud" ref={hudRef}>
-                <div className="hud-pill">⏱ {formattedTime}</div>
-                <div className="hud-pill">
-                  🔑 {keysCollectedCount} / {TOTAL_KEYS}
+              {controlsHintId !== 0 && (
+                <div className="controls-hint" dir="rtl" key={controlsHintId}>
+                  {IS_TOUCH ? (
+                    'משחקים עם הכפתורים שבתחתית המסך'
+                  ) : (
+                    <>
+                      משחקים עם <strong>החיצים במקלדת</strong>: ⬅️ ➡️ הליכה · ⬆️ קפיצה · ⬇️ ירידה
+                      <br />
+                      (או עם הכפתורים שבתחתית המסך)
+                    </>
+                  )}
                 </div>
-                <div className="hud-pill hud-pill--basket" key={giftsClaimedCount}>
-                  🎁 {giftsClaimedCount}
+              )}
+
+              {caughtToast && (
+                <div className="caught-toast" dir="rtl" key={caughtToast.id}>
+                  🔓 נפתח שיעור: <strong>{caughtToast.giftName}</strong>
                 </div>
-              </div>
+              )}
+
+              {topFloorBonusShown && (
+                <div className="bonus-toast" dir="rtl">
+                  הגעתם לקומה העליונה! ⏱ +{TOP_FLOOR_BONUS_SECONDS} שניות
+                </div>
+              )}
+
+              {/* יציאה מוקדמת מהמשחק — עוברים מיד למסך בחירת המתנות */}
+              <button
+                type="button"
+                className="finish-btn"
+                onClick={(e) => {
+                  e.currentTarget.blur()
+                  setPhase('ended')
+                }}
+              >
+                סיימתי לשחק ✓
+              </button>
 
               <div className="touch-controls">
                 <div className="touch-side">
@@ -1405,7 +2239,7 @@ function App() {
             <GiftLogo gift={giftPreview} />
           </div>
           <div className="gift-preview__copy">
-            <span>{giftPreview.businessName}</span>
+            <span>🔑 מפתח לשיעור של {giftPreview.businessName}</span>
             <strong>{giftPreview.giftName}</strong>
             {giftPreview.giftDescription && (
               <p className="gift-preview__desc">{giftPreview.giftDescription}</p>
@@ -1416,95 +2250,127 @@ function App() {
 
       {phase === 'ended' && (
         <div className="scene scene--center">
-          <h1>העסק שלכם הולך לקפוץ</h1>
-          <p className="subtitle">
-            בחרתם להיכנס לחדרים של {giftsClaimedCount} מתוך {COURSES.length} האוטוריטות שבבית הספר לעסקים שלנו
-          </p>
+          {/* מסך הסיום בנוי כמו עמוד קורס דיגיטלי: כל מתנה היא שיעור, פתוח או נעול.
+              קודם השיעורים שעוד לא נפתחו במשחק (שם הלידים החסרים), אחר כך מה שנפתח. */}
+          <div className="college" dir="rtl">
+            <header className="college__header">
+              <h1 className="college__title">ברוכים הבאים למכללה העסקית</h1>
+              <p className="college__subtitle">
+                כל האוטוריטות התאספו לתת לעסק שלך את הפינוקים שמגיע לו :)
+              </p>
+              <p className="score-summary">
+                ⭐ {score} נקודות
+                {scoreRecord.isNew && score > 0 && <span className="score-summary__record">🏆 שברת שיא!</span>}
+                {!scoreRecord.isNew && scoreRecord.previousBest > 0 && (
+                  <span className="score-summary__best">השיא שלך: {scoreRecord.previousBest}</span>
+                )}
+              </p>
+              <div className="college__progress">
+                <div className="college__progress-text">
+                  פתחת <strong>{giftsClaimedCount}</strong> מתוך {COURSES.length} שיעורים
+                </div>
+                <div className="college__progress-bar">
+                  <span style={{ width: `${(giftsClaimedCount / COURSES.length) * 100}%` }} />
+                </div>
+              </div>
+            </header>
 
-          <div className="gift-selection" dir="rtl">
-            <h2>רוצים להיכנס לחדרים נוספים?</h2>
-            <p className="gift-selection__count">
-              בכל חדר מחכה לך הפתעה שתעזור לך לקפוץ קפיצה עיסקית
-            </p>
-            <button
-              type="button"
-              className="secondary-btn gift-selection__all"
-              onClick={() =>
-                setClaimedGiftIds(
-                  giftsClaimedCount === COURSES.length
-                    ? new Set()
-                    : new Set(COURSES.map((course) => course.id))
-                )
-              }
-            >
-              {giftsClaimedCount === COURSES.length ? 'ניקוי הבחירה' : 'בחרו הכול'}
-            </button>
-            <div className="gift-selection__list">
-              {collectedGifts.map((gift) => (
-                <label className="gift-selection__item" key={gift.id}>
-                  <input
-                    type="checkbox"
-                    checked={claimedGiftIds.has(gift.id)}
-                    onChange={() => toggleGiftSelection(gift.id)}
-                  />
-                  <span className="gift-selection__logo">
-                    <GiftLogo gift={gift} />
-                  </span>
-                  <span className="gift-selection__text">
-                    <strong>{gift.giftName}</strong>
-                    <small>{gift.businessName}</small>
-                  </span>
-                  <span className="gift-selection__status">
-                    {claimedGiftIds.has(gift.id) ? 'מצטרפים ✓' : 'נאסף במשחק 🎁'}
-                  </span>
-                </label>
+            <ol className="college__lessons">
+              {uncollectedGifts.length > 0 && (
+                <li className="college__chapter">
+                  <h4>פרק: שיעורים שמחכים לך</h4>
+                  <span className="college__locked-pill">נעול לצפייה 🔒</span>
+                  {/* רק "פתחו הכול" — אין כפתור שנועל את הכול בלחיצה אחת */}
+                  {uncollectedGifts.some((gift) => !claimedGiftIds.has(gift.id)) && (
+                    <button
+                      type="button"
+                      className="college__unlock-all"
+                      onClick={() => setClaimedGiftIds(new Set(COURSES.map((course) => course.id)))}
+                    >
+                      🔓 פתחו את כל השיעורים
+                    </button>
+                  )}
+                </li>
+              )}
+              {uncollectedGifts.map((gift, index) => (
+                <LessonCard
+                  key={gift.id}
+                  gift={gift}
+                  number={index + 1}
+                  isOpen={claimedGiftIds.has(gift.id)}
+                  onToggle={() => toggleGiftSelection(gift.id)}
+                />
               ))}
-              {uncollectedGifts.map((gift) => (
-                <label className="gift-selection__item gift-selection__item--extra" key={gift.id}>
-                  <input
-                    type="checkbox"
-                    checked={claimedGiftIds.has(gift.id)}
-                    onChange={() => toggleGiftSelection(gift.id)}
-                  />
-                  <span className="gift-selection__logo">
-                    <GiftLogo gift={gift} />
-                  </span>
-                  <span className="gift-selection__text">
-                    <strong>{gift.giftName}</strong>
-                    <small>{gift.businessName}</small>
-                  </span>
-                  <span className="gift-selection__status">
-                    {claimedGiftIds.has(gift.id) ? 'מצטרפים ✓' : 'להצטרפות'}
-                  </span>
-                </label>
+
+              {collectedGifts.length > 0 && (
+                <li className="college__chapter">
+                  <h4>פרק: שיעורים שפתחת במשחק 🔑</h4>
+                </li>
+              )}
+              {collectedGifts.map((gift, index) => (
+                <LessonCard
+                  key={gift.id}
+                  gift={gift}
+                  number={uncollectedGifts.length + index + 1}
+                  isOpen={claimedGiftIds.has(gift.id)}
+                  onToggle={() => toggleGiftSelection(gift.id)}
+                />
               ))}
-            </div>
+            </ol>
           </div>
 
           <p className="result-badge">
-            רק תגלי לנו לאיפה לשלוח לך את כל המתנות העיסקיות האילו....
+            לאן לשלוח לך את השיעורים שפתחת?
           </p>
 
           {!leadSubmitted ? (
             <form className="lead-form" onSubmit={handleLeadSubmit}>
-              <input type="text" placeholder="שם מלא" required />
-              <input type="email" placeholder="אימייל" required />
-              <label className="consent-check">
-                <input type="checkbox" required />
-                <span>
-                  ברור שמאשר.ת קבלת דיוור מבעלות העסקים שאתפוס את המתנות שלהן, וממנהלות היריד ד.
-                  זילברשטיין ויעל פינגולד
-                </span>
-              </label>
-              <button type="submit" className="primary-btn" disabled={giftsClaimedCount === 0}>
-                {giftsClaimedCount === 0 ? 'סמנו לפחות עסק אחד' : 'קבלו את המתנות שבחרתם'}
+              {introEmailGiven && !editingLeadEmail ? (
+                <p className="lead-form__known-email">
+                  נשלח אל <strong dir="ltr">{leadEmail}</strong>{' '}
+                  <button type="button" className="lead-form__change" onClick={() => setEditingLeadEmail(true)}>
+                    לשנות
+                  </button>
+                </p>
+              ) : (
+                <>
+                  <input
+                    type="email"
+                    placeholder="אימייל"
+                    required
+                    value={leadEmail}
+                    onChange={(e) => setLeadEmail(e.target.value)}
+                  />
+                  <label className="consent-check">
+                    <input
+                      type="checkbox"
+                      required
+                      checked={leadConsent}
+                      onChange={(e) => setLeadConsent(e.target.checked)}
+                    />
+                    <span>
+                      ברור שמאשר.ת קבלת דיוור מבעלות העסקים שאפתח את השיעורים שלהן, וממנהלות היריד ד.
+                      זילברשטיין ויעל פיינגולד
+                    </span>
+                  </label>
+                </>
+              )}
+              <button type="submit" className="primary-btn" disabled={giftsClaimedCount === 0 || leadBusy}>
+                {giftsClaimedCount === 0
+                  ? 'פתחו לפחות שיעור אחד'
+                  : leadBusy
+                    ? 'שולחים...'
+                    : giftsClaimedCount === 1
+                      ? 'שלחו לי את השיעור'
+                      : `שלחו לי את ${giftsClaimedCount} השיעורים`}
               </button>
+              {leadError && <p className="lead-form__error">{leadError}</p>}
             </form>
           ) : (
             <p className="thank-you">
-              בעלי העסקים אורזים לכם את הקורסים והמתנות...
+              בעלות העסקים מכינות לכם את השיעורים...
               <br />
-              הם בדרך אליכם למייל...
+              הם בדרך אליכם למייל!
             </p>
           )}
 
@@ -1513,6 +2379,11 @@ function App() {
           </button>
         </div>
       )}
+
+      {/* הבהרה משפטית — מוצגת קטן בתחתית בכל שלבי היריד */}
+      <p className={`fair-disclaimer${phase === 'playing' || phase === 'countdown' ? ' fair-disclaimer--game' : ''}`}>
+        המתנות באחריות העסקים המפרסמים בלבד ונשלחות על ידי העסקים. ט.ל.ח. במקרה של תקלה, בעל העסק פטור.
+      </p>
     </div>
   )
 }

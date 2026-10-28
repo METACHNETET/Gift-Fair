@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.saveFinale = exports.sendSummerThankYou = exports.saveLead = exports.getShops = void 0;
+exports.saveFinale = exports.sendB2BThankYou = exports.sendSummerThankYou = exports.saveLead = exports.getShops = void 0;
 const admin = require("firebase-admin");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
@@ -112,6 +112,48 @@ async function sendSummerThankYouEmail({ email }) {
     const result = await response.json().catch(() => null);
     console.log("[mail] Summer thank-you email sent:", (_a = result === null || result === void 0 ? void 0 : result.id) !== null && _a !== void 0 ? _a : email);
 }
+async function sendB2BThankYouEmail({ email }) {
+    var _a;
+    if (!RESEND_API_KEY) {
+        console.warn("[mail] RESEND_API_KEY is not configured; skipping B2B thank-you email.");
+        return;
+    }
+    const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${RESEND_API_KEY}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            from: MAIL_FROM,
+            to: [email],
+            subject: "🤖 תודה שהשתתפתם ביריד B2B!",
+            html: `
+        <div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.7;color:#0c1f3a;background:#f4f1e8;max-width:520px;margin:0 auto;border-radius:20px;overflow:hidden;border:1px solid #e4cf94">
+          <div style="background:linear-gradient(155deg,#16407a,#0c2c58,#081c3c);padding:34px 28px 26px;text-align:center;border-bottom:4px solid #d4af5f">
+            <div style="font-size:46px;line-height:1;margin-bottom:6px">🎁</div>
+            <h1 style="margin:0;color:#fff6d8;font-size:23px;font-weight:800">העסק שלכם הולך לקפוץ!</h1>
+            <p style="margin:6px 0 0;color:#d4af5f;font-size:14px;font-weight:700">המכללה לקפיצה עסקית · יריד B2B</p>
+          </div>
+          <div style="padding:26px 28px 30px">
+            <p style="margin:0 0 14px;font-size:16px">תודה שהשתתפתם ביריד! בעלי העסקים אורזים לכם את הקורסים והמתנות שבחרתם בתשומת לב.</p>
+            <p style="margin:0;font-size:17px;color:#16407a;font-weight:700">הם בדרך אליכם למייל :)</p>
+          </div>
+        </div>
+      `,
+            text: `העסק שלכם הולך לקפוץ!
+
+תודה שהשתתפתם ביריד B2B! בעלי העסקים אורזים לכם את הקורסים והמתנות שבחרתם בתשומת לב.
+הם בדרך אליכם למייל :)`,
+        }),
+    });
+    if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Resend error ${response.status}: ${body}`);
+    }
+    const result = await response.json().catch(() => null);
+    console.log("[mail] B2B thank-you email sent:", (_a = result === null || result === void 0 ? void 0 : result.id) !== null && _a !== void 0 ? _a : email);
+}
 // GET /api/shops
 exports.getShops = (0, https_1.onRequest)((req, res) => {
     cors(req, res, async () => {
@@ -196,6 +238,28 @@ exports.sendSummerThankYou = (0, https_1.onRequest)((req, res) => {
         }
         catch (e) {
             console.error("[sendSummerThankYou] Email error:", e);
+            res.json({ ok: false, error: String(e) });
+        }
+    });
+});
+// POST /api/b2b-thank-you  body: { email }
+exports.sendB2BThankYou = (0, https_1.onRequest)({ invoker: "public" }, (req, res) => {
+    cors(req, res, async () => {
+        if (req.method !== "POST") {
+            res.status(405).send("Method Not Allowed");
+            return;
+        }
+        const { email } = req.body;
+        if (!email) {
+            res.status(400).json({ error: "Missing email" });
+            return;
+        }
+        try {
+            await sendB2BThankYouEmail({ email });
+            res.json({ ok: true });
+        }
+        catch (e) {
+            console.error("[sendB2BThankYou] Email error:", e);
             res.json({ ok: false, error: String(e) });
         }
     });

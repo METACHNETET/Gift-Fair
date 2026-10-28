@@ -1,9 +1,11 @@
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800;900&display=swap');
+
 .b2b-platformer .app-root {
   width: 100vw;
   height: 100vh;
   position: relative;
   direction: rtl;
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Heebo', system-ui, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* --- מסכים כלליים (פתיחה / ספירה לאחור / סיום) --- */
@@ -29,7 +31,7 @@
 
 /* תוכן שגובהו עולה על גובה המסך (כמו מסך הסיום) נדחף לגלילה במקום להיחתך,
    כי justify-content:center לבדו מסתיר את החלק העליון כשהתוכן ארוך מדי */
-.b2b-platformer .scene:has(.gift-selection),
+.b2b-platformer .scene:has(.college),
 .b2b-platformer .scene.intro-scene {
   justify-content: flex-start;
   padding-block: 40px;
@@ -37,54 +39,88 @@
 
 /* --- מסך פתיחה: שלט, בועת דיבור עם אותיות נופלות, ורובוט עומד --- */
 .b2b-platformer .intro-banner {
+  position: relative;
+  width: min(680px, 94vw);
+}
+
+.b2b-platformer .intro-banner__sign {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.5));
+}
+
+.b2b-platformer .intro-banner__text {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  top: 37%;
+  bottom: 16%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-family: 'Heebo', sans-serif;
   font-weight: 900;
-  font-size: clamp(22px, 4.2vw, 38px);
-  padding: 14px 32px;
-  border: clamp(3px, 0.6vw, 5px) solid #d4af5f;
-  border-radius: 18px;
-  background: linear-gradient(155deg, #16407a 0%, #0c2c58 55%, #081c3c 100%);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 0 24px rgba(212, 175, 95, 0.35);
-  color: #fff8e9;
-  line-height: 1.3;
+  font-size: clamp(16px, 3.1vw, 30px);
+  line-height: 1.15;
+  background: linear-gradient(180deg, #f6e3ac 0%, #d4af5f 55%, #9c7a2e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.5));
+  text-wrap: balance;
 }
 
 .b2b-platformer .intro-stage {
+  position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
-  min-height: 150px;
-  justify-content: flex-end;
+  justify-content: center;
+  width: 100%;
+  min-height: 52vh;
 }
 
+/* "נחש" אור שרץ סביב מסגרת הבועה: טכניקת רקע כפול סטנדרטית — שכבה אחת
+   (padding-box) היא הרקע הכחול הרגיל של הבועה, והשנייה (border-box) היא
+   פס זהב-לבן-זהב ברוחב 300% שמוסתר כברירת מחדל מאחורי שכבת הרקע הכחולה
+   ונראה רק ברצועת ה-border (כי צבע הגבול עצמו שקוף); הזזת מיקום הרקע
+   של השכבה הזו ברציפות יוצרת אפקט של אור רץ/נע לאורך כל המסגרת.
+*/
 .b2b-platformer .intro-bubble {
   position: relative;
-  max-width: min(640px, 90vw);
-  padding: 20px 28px;
-  border: clamp(3px, 0.6vw, 6px) solid #d4af5f;
+  max-width: min(680px, 86vw);
+  padding: clamp(20px, 3vw, 34px) clamp(26px, 4vw, 42px);
+  border: clamp(3px, 0.6vw, 6px) solid transparent;
   border-radius: clamp(18px, 3vw, 28px);
-  background: linear-gradient(155deg, #16407a 0%, #0c2c58 55%, #081c3c 100%);
+  background:
+    linear-gradient(155deg, #16407a 0%, #0c2c58 55%, #081c3c 100%) padding-box,
+    linear-gradient(
+        90deg,
+        #4a3714 0%,
+        #4a3714 32%,
+        #d4af5f 42%,
+        #fff6d8 50%,
+        #d4af5f 58%,
+        #4a3714 68%,
+        #4a3714 100%
+      )
+      border-box;
+  background-size: 100% 100%, 260% 100%;
+  animation: intro-border-shimmer 2.2s linear infinite;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), 0 0 30px rgba(212, 175, 95, 0.35),
     inset 0 2px 10px rgba(255, 255, 255, 0.14);
   color: #fff8e9;
-  font-size: clamp(16px, 2.4vw, 22px);
+  font-size: clamp(22px, 3.4vw, 36px);
   font-weight: 700;
   line-height: 1.5;
   text-align: center;
 }
 
-.b2b-platformer .intro-bubble::after {
-  content: '';
-  position: absolute;
-  bottom: -14px;
-  left: 50%;
-  width: 20px;
-  height: 20px;
-  border-right: clamp(3px, 0.6vw, 6px) solid #d4af5f;
-  border-bottom: clamp(3px, 0.6vw, 6px) solid #d4af5f;
-  border-radius: 0 0 5px 0;
-  background: #0c2c58;
-  transform: translateX(-50%) rotate(45deg);
+@keyframes intro-border-shimmer {
+  to {
+    background-position: 0 0, -260% 0;
+  }
 }
 
 .b2b-platformer .intro-bubble__line {
@@ -99,34 +135,220 @@
 .b2b-platformer .intro-bubble__char {
   display: inline-block;
   opacity: 0;
-  animation: intro-letter-fall 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+  animation: intro-letter-fall 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
 }
 
 @keyframes intro-letter-fall {
   0% {
     opacity: 0;
-    transform: translateY(-24px) rotate(-10deg);
+    transform: translateY(-24px) rotate(-10deg) scale(0.7);
+    color: #fff8e9;
+    text-shadow: none;
   }
-  70% {
+  55% {
     opacity: 1;
+    transform: translateY(2px) rotate(2deg) scale(1.18);
+    color: #fff6d6;
+    text-shadow: 0 0 10px #ffe9ad, 0 0 22px #ffd166, 0 0 2px #fff;
   }
   100% {
     opacity: 1;
-    transform: translateY(0) rotate(0deg);
+    transform: translateY(0) rotate(0deg) scale(1);
+    color: #fff8e9;
+    text-shadow: none;
   }
 }
 
-.b2b-platformer .intro-robot {
-  width: 56px;
-  height: 112px;
-  background-repeat: no-repeat;
-  background-size: 448px 224px;
-  background-position: 0 0;
-  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.45));
+.b2b-platformer .intro-keyboard {
+  direction: ltr;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: clamp(14px, 2vw, 20px);
 }
 
-.b2b-platformer .intro-lead-form {
+.b2b-platformer .intro-keyboard__row {
+  display: flex;
+  gap: 6px;
+}
+
+.b2b-platformer .intro-keyboard__key {
+  width: clamp(38px, 5vw, 52px);
+  height: clamp(38px, 5vw, 52px);
+  border-radius: 10px;
+  border: 2px solid rgba(212, 175, 95, 0.55);
+  background: linear-gradient(155deg, #16407a 0%, #0c2c58 100%);
+  color: #f1d896;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(18px, 2.4vw, 24px);
+  font-weight: 700;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+  animation: intro-key-press 1.5s ease-in-out infinite;
+}
+
+@keyframes intro-key-press {
+  0%, 33%, 100% {
+    transform: scale(1);
+    background: linear-gradient(155deg, #16407a 0%, #0c2c58 100%);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+    color: #f1d896;
+  }
+  10% {
+    transform: scale(0.88);
+    background: linear-gradient(155deg, #d4af5f 0%, #f6e3ac 100%);
+    box-shadow: 0 0 18px rgba(255, 210, 130, 0.85);
+    color: #2a1d05;
+  }
+}
+
+/* לחיצה אמיתית על החץ בפועל "מקפיאה" את לולאת ההדגמה ומדליקה את המקש מיד */
+.b2b-platformer .intro-keyboard__key--pressed {
+  animation: none;
+  transform: scale(0.88);
+  background: linear-gradient(155deg, #d4af5f 0%, #f6e3ac 100%);
+  box-shadow: 0 0 18px rgba(255, 210, 130, 0.85);
+  color: #2a1d05;
+}
+
+.b2b-platformer .intro-keyboard__caption {
+  margin-top: 2px;
+  font-size: clamp(12px, 1.6vw, 14px);
+  font-weight: 600;
+  color: #cfe0f5;
+  direction: rtl;
+}
+
+.b2b-platformer .intro-robot {
+  position: absolute;
+  top: var(--robot-y, 50%);
+  left: var(--robot-x, 0px);
+  height: 50vh;
+  width: auto;
+  max-width: 44vw;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.45));
+  transition: transform 0.22s cubic-bezier(0.3, 1.5, 0.4, 1);
+}
+
+.b2b-platformer .intro-robot--active {
+  animation: intro-robot-glow 0.96s ease-in-out infinite;
+}
+
+@keyframes intro-robot-glow {
+  0%, 100% {
+    filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 10px rgba(255, 200, 110, 0.4))
+      drop-shadow(0 0 2px rgba(255, 240, 200, 0.5));
+  }
+  50% {
+    filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 34px rgba(255, 210, 130, 0.95))
+      drop-shadow(0 0 10px rgba(255, 245, 210, 0.85));
+  }
+}
+
+.b2b-platformer .intro-start-btn {
+  position: fixed;
+  bottom: 38px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+}
+
+.b2b-platformer .intro-start-btn:not(:disabled) {
+  animation: intro-start-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes intro-start-pulse {
+  0%, 100% {
+    transform: translateX(-50%) scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 190, 90, 0.65);
+  }
+  50% {
+    transform: translateX(-50%) scale(1.06);
+    box-shadow: 0 0 0 14px rgba(255, 190, 90, 0);
+  }
+}
+
+/* שאלה קצרה אחת ("לאן לשלוח את המתנות") שנפתחת כשלוחצים "התחילו לשחק" —
+   לא חוסמת: אפשר לשלוח גם בלי להזין כלום (ראו disabled על הכפתור למטה). */
+.b2b-platformer .intro-lead-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(8, 10, 16, 0.72);
+  backdrop-filter: blur(3px);
+  animation: intro-lead-overlay-in 0.25s ease-out;
+}
+
+@keyframes intro-lead-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.b2b-platformer .intro-lead-overlay__card {
+  background: linear-gradient(155deg, #16407a 0%, #0c2c58 55%, #081c3c 100%);
+  border: clamp(2px, 0.4vw, 4px) solid rgba(212, 175, 95, 0.55);
+  border-radius: 20px;
+  padding: clamp(22px, 3vw, 32px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55), 0 0 30px rgba(212, 175, 95, 0.25);
+  text-align: center;
+  align-items: center;
+}
+
+.b2b-platformer .intro-lead-overlay__heading {
+  font-size: 20px;
+  color: #f1d896;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.b2b-platformer .intro-lead-overlay__question {
+  font-size: clamp(18px, 2.6vw, 22px);
+  font-weight: 700;
+  color: #fff8e9;
+  margin-bottom: 6px;
+}
+
+/* תזכורת איך משחקים — רגע לפני שנכנסים, גם למי שלחצה "התחילו" לפני שהרובוט הסביר */
+.b2b-platformer .intro-lead-overlay__controls {
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(242, 185, 75, 0.16);
+  border: 1px solid rgba(242, 185, 75, 0.55);
+  color: #ffe9b8;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.b2b-platformer .intro-lead-overlay__submit {
   margin-top: 4px;
+  animation: intro-start-pulse-scale 1.1s ease-in-out infinite;
+}
+
+.b2b-platformer .intro-lead-overlay__submit:disabled {
+  animation: none;
+}
+
+@keyframes intro-start-pulse-scale {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 190, 90, 0.65);
+  }
+  50% {
+    transform: scale(1.06);
+    box-shadow: 0 0 0 14px rgba(255, 190, 90, 0);
+  }
 }
 
 .b2b-platformer .scene h1 {
@@ -203,6 +425,28 @@
   color: #a89bc0;
 }
 
+/* מייל שכבר נמסר בפתיחה — רק מאשרים אותו, עם אפשרות לשנות */
+.b2b-platformer .lead-form__known-email {
+  margin: 0;
+  color: #d9d2e8;
+  font-size: 15px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.b2b-platformer .lead-form__known-email strong {
+  color: #f4efe6;
+}
+.b2b-platformer .lead-form__change {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #f2b94b;
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .b2b-platformer .consent-check {
   display: flex;
   align-items: flex-start;
@@ -233,11 +477,12 @@
   position: absolute;
   z-index: 8;
   top: 3vh;
-  left: 50%;
+  /* ממורכז על אזור המשחק, לא על כל המסך (הסרגל תופס את השמאל) */
+  left: calc(var(--hud-w, 0px) + (100% - var(--hud-w, 0px)) / 2);
   display: flex;
   align-items: flex-start;
   gap: clamp(12px, 2.2vw, 22px);
-  width: min(94vw, 620px);
+  width: min(calc(100vw - var(--hud-w, 0px) - 16px), 620px);
   min-height: clamp(104px, 13vw, 148px);
   padding: clamp(14px, 2.4vw, 26px) clamp(18px, 3vw, 32px);
   border: clamp(3px, 0.6vw, 6px) solid #d4af5f;
@@ -322,127 +567,16 @@
   -webkit-line-clamp: 3;
 }
 
-.b2b-platformer .gift-selection {
-  display: flex;
-  flex-direction: column;
-  width: min(100%, 540px);
-  max-height: min(44vh, 360px);
-  padding: 12px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.26);
-  border-radius: 8px;
-  background: rgba(13, 20, 30, 0.8);
-  text-align: right;
-}
-
-.b2b-platformer .gift-selection h2 {
-  margin: 0;
-  color: #ffe2a0;
-  font-size: 20px;
-}
-
-.b2b-platformer .gift-selection__count {
-  margin: 3px 0 10px;
-  color: #d8e0eb;
-  font-size: 13px;
-}
-
-.b2b-platformer .gift-selection__list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  overflow-y: auto;
-  padding-inline-end: 2px;
-}
-
-.b2b-platformer .gift-selection__item {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-height: 54px;
-  padding: 6px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.07);
-  cursor: pointer;
-  text-align: right;
-}
-
-.b2b-platformer .gift-selection__item--extra {
-  border-style: dashed;
-  background: rgba(255, 255, 255, 0.035);
-}
-
-.b2b-platformer .gift-selection__item input {
-  flex: 0 0 17px;
-  width: 17px;
-  height: 17px;
-  accent-color: #70d7b5;
-  cursor: pointer;
-}
-
-.b2b-platformer .gift-selection__logo {
-  display: grid;
-  flex: 0 0 39px;
-  width: 39px;
-  height: 39px;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 4px;
-  background: #fff;
-  color: #25364b;
-  font-size: 23px;
-}
-
-.b2b-platformer .gift-selection__logo img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
-
-.b2b-platformer .gift-selection__text {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.b2b-platformer .gift-selection__text strong,
-.b2b-platformer .gift-selection__text small {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  overflow-wrap: anywhere;
-}
-
-.b2b-platformer .gift-selection__text strong {
-  color: #fff8e9;
-  font-size: 13px;
-  -webkit-line-clamp: 2;
-}
-
-.b2b-platformer .gift-selection__text small {
-  color: #c5d0df;
-  font-size: 11px;
-  -webkit-line-clamp: 1;
-}
-
-.b2b-platformer .gift-selection__status {
-  flex: 0 0 auto;
-  color: #9ee7c6;
-  font-size: 11px;
-  font-weight: 800;
-}
-
 @keyframes gift-preview-in {
   from { opacity: 0; transform: translate(-50%, 8px); }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 
 /* --- אזור המשחק --- */
+/* המשחק תופס רק את מה שמימין לסרגל הצד (ראו .hud) */
 .b2b-platformer .game-viewport {
   position: absolute;
-  inset: 0;
+  inset: var(--hud-h, 0px) 0 0 var(--hud-w, 0px);
   overflow: hidden;
   background: #12101a;
 }
@@ -736,25 +870,238 @@
   to { background-position-x: -323px; }
 }
 
-/* --- HUD --- */
+/* --- HUD: סרגל צד נפרד בשמאל --- */
+/* פאנל בגובה מלא עם רקע משלו, הכל אחד מתחת לשני — כמו בשאר הירידים.
+   הרוחב (--hud-w) נקבע ב-App.jsx (hudWidthFor), והמשחק מתחיל מימין לו. */
 .b2b-platformer .hud {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--hud-w, 220px);
+  box-sizing: border-box;
   display: flex;
-  gap: 10px;
-  z-index: 5;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 14px 16px;
+  overflow-y: auto;
+  z-index: 20;
+  background:
+    radial-gradient(120% 50% at 50% 0%, rgba(212, 175, 95, 0.18), transparent 70%),
+    linear-gradient(180deg, #102a52 0%, #0a1d3c 55%, #07142b 100%);
+  border-right: 3px solid #d4af5f;
+  box-shadow: 6px 0 24px rgba(0, 0, 0, 0.45);
+  scrollbar-width: none;
 }
 
+.b2b-platformer .hud::-webkit-scrollbar { display: none; }
+
+.b2b-platformer .hud__title {
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(212, 175, 95, 0.35);
+  text-align: center;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.2;
+  background: linear-gradient(180deg, #f6e3ac 0%, #d4af5f 60%, #b08a3a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.b2b-platformer .hud__stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* כל נתון בשורה: תווית מימין, ערך משמאל */
 .b2b-platformer .hud-pill {
-  background: rgba(18, 12, 26, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 999px;
-  padding: 8px 16px;
-  font-size: 16px;
-  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid rgba(212, 175, 95, 0.3);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
   color: #f4efe6;
-  backdrop-filter: blur(4px);
+}
+
+.b2b-platformer .hud-pill__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #cfe0f5;
+  white-space: nowrap;
+}
+
+.b2b-platformer .hud-pill__value {
+  font-size: 19px;
+  font-weight: 800;
+  color: #ffe27a;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.b2b-platformer .hud-above {
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(212, 175, 95, 0.16);
+  color: #f1d896;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  animation: up-hint-bob 1.2s ease-in-out infinite;
+}
+
+/* יצירת קשר + חסות נדחפים לתחתית הסרגל */
+.b2b-platformer .hud__bottom {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.b2b-platformer .hud-contact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 12px 8px;
+  border: 1.5px solid rgba(255, 255, 255, 0.28);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(109, 40, 217, 0.75) 0%, rgba(219, 39, 119, 0.65) 100%);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  color: #fff;
+  text-decoration: none;
+  transition: transform 0.12s;
+}
+
+.b2b-platformer .hud-contact:hover { transform: scale(1.03); }
+.b2b-platformer .hud-contact__icon { font-size: 22px; line-height: 1; }
+.b2b-platformer .hud-contact__title { font-size: 14px; font-weight: 800; }
+.b2b-platformer .hud-contact__email {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  word-break: break-all;
+  user-select: text;
+}
+
+.b2b-platformer .hud-sponsor {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 10px 8px;
+  border: 1.5px solid rgba(212, 175, 95, 0.6);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 0 16px rgba(212, 175, 95, 0.25);
+}
+
+.b2b-platformer .hud-sponsor__label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #9c7a2e;
+}
+
+.b2b-platformer .hud-sponsor__logo {
+  width: 100%;
+  max-height: 110px;
+  object-fit: contain;
+}
+
+.b2b-platformer .hud-sponsor__name {
+  font-size: 13px;
+  font-weight: 800;
+  color: #1a1424;
+}
+
+/* במסך צר או נמוך — סרגל צר יותר (HUD_WIDTH_NARROW ב-App.jsx) ותוכן קומפקטי */
+@media (max-width: 600px), (max-height: 500px) {
+  .b2b-platformer .hud {
+    gap: 8px;
+    padding: 12px 6px 10px;
+  }
+  .b2b-platformer .hud__title { font-size: 12px; padding-bottom: 6px; }
+  .b2b-platformer .hud-pill {
+    flex-direction: column;
+    gap: 0;
+    padding: 5px 4px;
+  }
+  .b2b-platformer .hud-pill__label { font-size: 11px; }
+  .b2b-platformer .hud-pill__value { font-size: 15px; }
+  .b2b-platformer .hud-above { font-size: 11px; padding: 4px; }
+  .b2b-platformer .hud-contact { padding: 8px 4px; }
+  .b2b-platformer .hud-contact__email { display: none; }
+  .b2b-platformer .hud-contact__title { font-size: 11px; text-align: center; }
+  .b2b-platformer .hud-sponsor { padding: 6px; }
+  .b2b-platformer .hud-sponsor__logo { max-height: 56px; }
+  .b2b-platformer .hud-sponsor__name { font-size: 11px; text-align: center; }
+}
+
+/* מסך נמוך — מצמצמים רווחים; הסרגל נגלל אם עדיין לא נכנס */
+@media (max-height: 560px) {
+  .b2b-platformer .hud { gap: 6px; padding-top: 10px; }
+  .b2b-platformer .hud__title { display: none; }
+  .b2b-platformer .hud-pill { padding: 4px 10px; }
+  .b2b-platformer .hud-sponsor__logo { max-height: 50px; }
+}
+
+/* טלפון לאורך — הסרגל הופך לפס עליון (HUD_BAR_HEIGHT ב-App.jsx) כדי שהמשחק
+   יקבל את כל הרוחב. רק הנתונים החשובים והחסות; קומה ויצירת קשר מוסתרים. */
+.b2b-platformer .app-root--hud-top .hud {
+  right: 0;
+  bottom: auto;
+  width: auto;
+  height: var(--hud-h);
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  overflow: hidden;
+  border-right: none;
+  border-bottom: 3px solid #d4af5f;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+.b2b-platformer .app-root--hud-top .hud__title,
+.b2b-platformer .app-root--hud-top .hud-pill--floor,
+.b2b-platformer .app-root--hud-top .hud-above,
+.b2b-platformer .app-root--hud-top .hud-contact,
+.b2b-platformer .app-root--hud-top .hud-sponsor__label,
+.b2b-platformer .app-root--hud-top .hud-sponsor__name {
+  display: none;
+}
+.b2b-platformer .app-root--hud-top .hud__stats {
+  flex: 1 1 auto;
+  flex-direction: row;
+  gap: 5px;
+  min-width: 0;
+}
+.b2b-platformer .app-root--hud-top .hud-pill {
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  padding: 3px 2px;
+  border-radius: 10px;
+}
+.b2b-platformer .app-root--hud-top .hud-pill__label { font-size: 10px; }
+.b2b-platformer .app-root--hud-top .hud-pill__value { font-size: 15px; line-height: 1.1; }
+.b2b-platformer .app-root--hud-top .hud__bottom {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+.b2b-platformer .app-root--hud-top .hud-sponsor {
+  padding: 3px 6px;
+  border-radius: 10px;
+}
+.b2b-platformer .app-root--hud-top .hud-sponsor__logo {
+  width: auto;
+  max-width: 76px;
+  max-height: 36px;
 }
 
 .b2b-platformer .hud--damage {
@@ -769,15 +1116,16 @@
 }
 
 /* --- שליטה במגע (מסכי קיוסק) --- */
+/* מתחיל מימין לסרגל הצד — אחרת הסרגל (z-index גבוה) מסתיר את החצים השמאליים */
 .b2b-platformer .touch-controls {
   position: absolute;
-  bottom: 20px;
-  left: 0;
+  bottom: calc(36px + env(safe-area-inset-bottom, 0px));
+  left: var(--hud-w, 0px);
   right: 0;
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  padding: 0 24px;
+  padding: 0 16px;
   z-index: 5;
   pointer-events: none;
 }
@@ -793,10 +1141,11 @@
   height: 64px;
   border-radius: 50%;
   border: none;
-  background: rgba(244, 239, 230, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: #f4efe6;
+  background: rgba(8, 28, 60, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  color: #fff;
   font-size: 26px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(4px);
   pointer-events: auto;
   touch-action: none;
@@ -805,15 +1154,80 @@
 .b2b-platformer .touch-btn--jump {
   width: 78px;
   height: 78px;
-  background: rgba(242, 185, 75, 0.25);
-  border-color: rgba(242, 185, 75, 0.5);
+  background: rgba(242, 185, 75, 0.6);
+  border-color: #f2b94b;
   font-size: 30px;
 }
 
-@media (min-width: 900px) {
+/* בטלפון הסרגל צר והשטח קטן — כפתורים מעט קטנים כדי שארבעתם ייכנסו */
+@media (max-width: 600px) {
   .b2b-platformer .touch-controls {
-    display: none;
+    padding: 0 10px;
   }
+  .b2b-platformer .touch-side {
+    gap: 8px;
+  }
+  .b2b-platformer .touch-btn {
+    width: 52px;
+    height: 52px;
+    font-size: 22px;
+  }
+  .b2b-platformer .touch-btn--jump {
+    width: 60px;
+    height: 60px;
+    font-size: 26px;
+  }
+}
+
+/* הכפתורים מוצגים גם במחשב — מי שלא חושבת על החיצים יכולה לשחק בעכבר */
+
+.b2b-platformer .touch-btn--pressed {
+  transform: scale(0.9);
+  background: rgba(242, 185, 75, 0.85);
+}
+
+/* הכפתורים בבועת ההוראות (במכשירי מגע) — אותו עיצוב כמו במשחק */
+.b2b-platformer .intro-touch {
+  direction: ltr;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 28px;
+  margin-top: 14px;
+}
+.b2b-platformer .intro-touch__group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.b2b-platformer .intro-touch__row {
+  display: flex;
+  gap: 10px;
+}
+.b2b-platformer .intro-touch .touch-btn {
+  width: 56px;
+  height: 56px;
+  font-size: 22px;
+  animation: intro-touch-hint 1.5s ease-in-out infinite;
+}
+.b2b-platformer .intro-touch .touch-btn--jump {
+  width: 64px;
+  height: 64px;
+  font-size: 26px;
+  animation-delay: 0.5s;
+}
+.b2b-platformer .intro-touch .touch-btn--pressed {
+  animation: none;
+}
+.b2b-platformer .intro-touch__caption {
+  font-size: 14px;
+  font-weight: 700;
+  color: #cfe0f5;
+}
+@keyframes intro-touch-hint {
+  0%, 40%, 100% { transform: scale(1); }
+  15% { transform: scale(0.9); box-shadow: 0 0 18px rgba(255, 210, 130, 0.85); }
 }
 
 /* --- אלמנטים בשלב: מדפים, קופסאות מתנה, מעלית ודלתות סודיות --- */
@@ -838,9 +1252,36 @@
   animation: gift-box-glow 1.4s ease-in-out infinite;
 }
 
+/* לוגו העסק שהמפתח שלו בתוך הקופסה — תגית לבנה על חזית הקופסה, 🎁 קטן בפינה */
+.b2b-platformer .gift-box__logo {
+  position: absolute;
+  inset: 4px -10px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 2px 3px;
+  border-radius: 6px;
+  background: #fff;
+  border: 2px solid #f1d896;
+}
+
+.b2b-platformer .gift-box__logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.b2b-platformer .gift-box__logo .gift-logo-fallback {
+  border-radius: 4px;
+}
+
 .b2b-platformer .gift-box__icon {
-  font-size: 24px;
+  position: absolute;
+  top: -12px;
+  right: -16px;
+  font-size: 18px;
   line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
 }
 
 .b2b-platformer .gift-box--opened {
@@ -852,6 +1293,10 @@
 
 .b2b-platformer .gift-box--opened .gift-box__icon {
   opacity: 0;
+}
+
+.b2b-platformer .gift-box--opened .gift-box__logo {
+  opacity: 0.45;
 }
 
 .b2b-platformer .gift-box--bump {
@@ -919,24 +1364,146 @@
   background: rgba(170, 210, 240, 0.12);
 }
 
+/* --- דלת סודית מפוארת: קשת זהב עם אבן חן, שתי כנפיים מעץ עם עיטורי זהב,
+   הילה קסומה וניצוצות שעולים. כשעומדים מולה הכנפיים נפתחות מעט ואור זהוב
+   בוקע מבפנים. --- */
 .b2b-platformer .secret-door {
   position: absolute;
-  border-radius: 26px 26px 2px 2px;
-  background: linear-gradient(180deg, #4b2a14 0%, #2c180b 100%);
-  border: 3px solid #d9b25c;
-  box-shadow: 0 0 12px rgba(217, 178, 92, 0.45), inset 0 0 18px rgba(0, 0, 0, 0.6);
+  border-radius: 999px 999px 3px 3px;
+  background: linear-gradient(180deg, #fff0b8 0%, #d9b25c 35%, #9a6b1f 100%);
+  padding: 4px 4px 0;
+  box-shadow:
+    0 0 0 2px #5a3a0a,
+    0 0 18px rgba(255, 210, 110, 0.65),
+    0 0 40px rgba(170, 120, 255, 0.35);
   z-index: 1;
+  perspective: 220px;
+  animation: secret-door-aura 2.6s ease-in-out infinite;
 }
 
-.b2b-platformer .secret-door::after {
+@keyframes secret-door-aura {
+  0%, 100% {
+    box-shadow: 0 0 0 2px #5a3a0a, 0 0 14px rgba(255, 210, 110, 0.55), 0 0 30px rgba(170, 120, 255, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 2px #5a3a0a, 0 0 24px rgba(255, 220, 130, 0.9), 0 0 52px rgba(170, 120, 255, 0.55);
+  }
+}
+
+/* הילה רכה על הקיר מאחורי הדלת */
+.b2b-platformer .secret-door__glow {
+  position: absolute;
+  inset: -18px -22px -4px;
+  border-radius: 999px 999px 0 0;
+  background: radial-gradient(ellipse at 50% 60%, rgba(255, 214, 120, 0.35) 0%, rgba(170, 120, 255, 0.18) 45%, transparent 70%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* החלל שמאחורי הכנפיים — אור קסום שנראה כשהן נפתחות */
+.b2b-platformer .secret-door__portal {
+  position: absolute;
+  inset: 4px 4px 0;
+  border-radius: 999px 999px 0 0;
+  background:
+    radial-gradient(ellipse at 50% 70%, #fff8dc 0%, #ffd66e 30%, #b57cff 65%, #2a1450 100%);
+  animation: secret-door-portal 1.8s ease-in-out infinite;
+}
+
+@keyframes secret-door-portal {
+  0%, 100% { filter: brightness(0.9) hue-rotate(0deg); }
+  50% { filter: brightness(1.25) hue-rotate(-18deg); }
+}
+
+.b2b-platformer .secret-door__leaf {
+  position: absolute;
+  top: 4px;
+  bottom: 0;
+  width: calc(50% - 4px);
+  background:
+    linear-gradient(180deg, transparent 0 18%, rgba(241, 216, 150, 0.7) 18% 20%, transparent 20% 56%, rgba(241, 216, 150, 0.7) 56% 58%, transparent 58%),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.25), rgba(255, 255, 255, 0.06) 50%, rgba(0, 0, 0, 0.3)),
+    linear-gradient(180deg, #6b3a17 0%, #4a2610 60%, #2c160a 100%);
+  box-shadow: inset 0 0 0 2px rgba(241, 216, 150, 0.55), inset 0 0 10px rgba(0, 0, 0, 0.55);
+  transition: transform 0.35s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.b2b-platformer .secret-door__leaf--left {
+  left: 4px;
+  border-radius: 999px 0 0 0 / 999px 0 0 0;
+  transform-origin: 0 50%;
+}
+
+.b2b-platformer .secret-door__leaf--right {
+  right: 4px;
+  border-radius: 0 999px 0 0 / 0 999px 0 0;
+  transform-origin: 100% 50%;
+}
+
+/* ידיות זהב */
+.b2b-platformer .secret-door__leaf::after {
   content: '';
   position: absolute;
-  right: 9px;
-  top: 50%;
-  width: 7px;
-  height: 7px;
+  top: 54%;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: #f1d896;
+  background: radial-gradient(circle at 35% 35%, #fffbe6, #e0b54e 60%, #8a5a12);
+  box-shadow: 0 0 4px rgba(255, 220, 130, 0.9);
+}
+
+.b2b-platformer .secret-door__leaf--left::after { right: 3px; }
+.b2b-platformer .secret-door__leaf--right::after { left: 3px; }
+
+/* אבן חן בראש הקשת */
+.b2b-platformer .secret-door__gem {
+  position: absolute;
+  left: 50%;
+  top: -7px;
+  width: 12px;
+  height: 12px;
+  transform: translateX(-50%) rotate(45deg);
+  background: linear-gradient(135deg, #f3d1ff 0%, #b57cff 45%, #5b1fa8 100%);
+  border: 2px solid #f1d896;
+  box-shadow: 0 0 10px rgba(190, 130, 255, 0.95);
+  animation: secret-door-gem 1.6s ease-in-out infinite;
+  z-index: 2;
+}
+
+@keyframes secret-door-gem {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.6); box-shadow: 0 0 16px rgba(210, 160, 255, 1); }
+}
+
+/* ניצוצות שעולים לאורך הדלת */
+.b2b-platformer .secret-door__spark {
+  position: absolute;
+  bottom: 6px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #fff3c4;
+  box-shadow: 0 0 6px 1px rgba(255, 215, 120, 0.95);
+  opacity: 0;
+  animation: secret-door-spark 2.4s ease-out infinite;
+  pointer-events: none;
+}
+
+.b2b-platformer .secret-door__spark--1 { left: -4px; animation-delay: 0s; }
+.b2b-platformer .secret-door__spark--2 { right: -4px; animation-delay: 0.8s; }
+.b2b-platformer .secret-door__spark--3 { left: 50%; animation-delay: 1.6s; background: #e9d4ff; box-shadow: 0 0 6px 1px rgba(190, 130, 255, 0.95); }
+
+@keyframes secret-door-spark {
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translateY(-96px) scale(0.2); opacity: 0; }
+}
+
+/* עומדים מול הדלת: הכנפיים נפתחות מעט והאור מבפנים מתחזק */
+.b2b-platformer .secret-door--near .secret-door__leaf--left { transform: rotateY(-38deg); }
+.b2b-platformer .secret-door--near .secret-door__leaf--right { transform: rotateY(38deg); }
+.b2b-platformer .secret-door--near {
+  animation-duration: 0.9s;
 }
 
 .b2b-platformer .secret-door__hint {
@@ -963,15 +1530,46 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: #000;
+  background: radial-gradient(circle, #fff6d6 0%, #ffd66e 35%, #6a2fb8 100%);
   pointer-events: none;
   z-index: 50;
-  animation: door-flash 0.45s ease-out forwards;
+  animation: door-flash 0.55s ease-out forwards;
 }
 
 @keyframes door-flash {
   0% { opacity: 0.85; }
   100% { opacity: 0; }
+}
+
+/* --- חץ ⬆ מעל תחתית הסולם / תחנת המעלית כשיש מתנות בקומות למעלה --- */
+.b2b-platformer .up-hint {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  margin-left: -22px;
+  margin-top: -150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(13, 10, 18, 0.8);
+  border: 2px solid #f1d896;
+  color: #f1d896;
+  font-size: 24px;
+  font-weight: 700;
+  pointer-events: none;
+  z-index: 3;
+  box-shadow: 0 0 14px rgba(255, 214, 110, 0.7);
+  animation: up-hint-bob 0.9s ease-in-out infinite;
+}
+
+@keyframes up-hint-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.b2b-platformer .hud-pill--floor {
+  direction: rtl;
 }
 
 @keyframes door-hint-bob {
@@ -992,7 +1590,15 @@
 }
 
 .b2b-platformer .gift-preview__logo .gift-logo-fallback { font-size: 21px; }
-.b2b-platformer .gift-selection__logo .gift-logo-fallback { font-size: 14px; }
+
+/* שם מלא במקום לוגו: קטן יותר ומתחלק לשורות */
+.b2b-platformer .gift-logo-fallback--text {
+  padding: 2px;
+  font-size: 10px;
+  line-height: 1.05;
+  text-align: center;
+}
+.b2b-platformer .gift-preview__logo .gift-logo-fallback--text { font-size: 18px; }
 
 /* --- מפתח עם תגית לוגו --- */
 .b2b-platformer .key-item__logo {
@@ -1043,6 +1649,162 @@
   animation: basket-bump 0.5s cubic-bezier(0.3, 1.8, 0.5, 1);
 }
 
+/* "+100" שעולה ונעלם מעל המקום שבו נתפסה המתנה */
+.b2b-platformer .points-float {
+  position: absolute;
+  transform: translateX(-50%);
+  z-index: 4;
+  color: #ffe27a;
+  font-size: 22px;
+  font-weight: 800;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  animation: points-float 1.1s ease-out forwards;
+}
+
+@keyframes points-float {
+  0% { opacity: 0; translate: 0 6px; scale: 0.7; }
+  15% { opacity: 1; translate: 0 0; scale: 1.15; }
+  100% { opacity: 0; translate: 0 -60px; scale: 1; }
+}
+
+/* "נכנס לסל: <המתנה>" מתחת לשורת ה-HUD */
+.b2b-platformer .caught-toast {
+  position: absolute;
+  top: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  max-width: calc(100% - 32px);
+  padding: 8px 18px;
+  border-radius: 14px;
+  background: rgba(18, 12, 26, 0.85);
+  border: 1px solid #f1d896;
+  color: #f4efe6;
+  font-size: 16px;
+  text-align: center;
+  pointer-events: none;
+  animation: bonus-toast 2s ease-out forwards;
+}
+
+/* תזכורת "איך משחקים" — מעל הכפתורים שבתחתית, באמצע (בין שתי קבוצות הכפתורים) */
+.b2b-platformer .controls-hint {
+  position: absolute;
+  bottom: 130px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  max-width: calc(100% - 32px);
+  padding: 10px 20px;
+  border-radius: 14px;
+  background: rgba(18, 12, 26, 0.88);
+  border: 2px solid #f2b94b;
+  color: #f4efe6;
+  font-size: 17px;
+  line-height: 1.5;
+  text-align: center;
+  pointer-events: none;
+  animation: controls-hint 4s ease-out forwards;
+}
+
+.b2b-platformer .controls-hint strong {
+  color: #ffe27a;
+}
+
+@keyframes controls-hint {
+  0% { opacity: 0; translate: 0 10px; }
+  8% { opacity: 1; translate: 0 0; }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.b2b-platformer .caught-toast strong {
+  color: #ffe27a;
+}
+
+/* בועת "⬆ קפצו מלמטה!" מעל קופסת מתנה סגורה כשמתקרבים אליה */
+.b2b-platformer .gift-box__hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 14px);
+  transform: translateX(-50%);
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(13, 10, 18, 0.85);
+  color: #f1d896;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+.b2b-platformer .gift-box--near .gift-box__hint {
+  opacity: 1;
+  animation: door-hint-bob 0.9s ease-in-out infinite;
+}
+
+/* ניקוד ושיא במסך הסיום */
+.b2b-platformer .score-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 800;
+  color: #ffe27a;
+}
+
+.b2b-platformer .score-summary__record {
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: rgba(47, 166, 90, 0.9);
+  color: #fff;
+  font-size: 16px;
+}
+
+.b2b-platformer .score-summary__best {
+  font-size: 15px;
+  font-weight: 600;
+  color: #f4efe6;
+  opacity: 0.8;
+}
+
+/* בונוס הזמן של הקומה העליונה: השעון מואר והודעה צצה במרכז העליון */
+.b2b-platformer .hud-pill--bonus {
+  animation: basket-bump 0.5s cubic-bezier(0.3, 1.8, 0.5, 1);
+  background: rgba(47, 166, 90, 0.85);
+}
+
+.b2b-platformer .bonus-toast {
+  position: absolute;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: rgba(47, 166, 90, 0.92);
+  border: 2px solid #f1d896;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: bonus-toast 2.2s ease-out forwards;
+}
+
+@keyframes bonus-toast {
+  0% { opacity: 0; translate: 0 -12px; scale: 0.8; }
+  12% { opacity: 1; translate: 0 0; scale: 1.08; }
+  20% { scale: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 @keyframes gift-confetti {
   0% { opacity: 1; transform: rotate(var(--angle)) translateY(0) rotate(0); }
   100% { opacity: 0; transform: rotate(var(--angle)) translateY(calc(var(--distance) * -1)) rotate(540deg); }
@@ -1054,11 +1816,431 @@
   100% { scale: 1; }
 }
 
-/* --- מסך סיום: בחירת עסקים --- */
-.b2b-platformer .gift-selection__all {
-  margin: 0 auto 10px;
-  padding: 6px 16px;
+/* --- מסך סיום: עמוד המכללה, בעיצוב עמוד הקורס של schoolframe.net ---
+   דף לבן, כרטיסי שיעור עם "תמונה" (לוגו על רקע בצבע העסק), תגית "שיעור N"
+   בטורקיז, ושיעור נעול באפור עם מנעול. */
+.b2b-platformer .college {
+  --college-ink: #333333;
+  --college-muted: #6b7280;
+  --college-teal: #00c2cb;
+  --college-teal-soft: #e6fafb;
+  --college-pink: #d81b60;
+  --college-pink-soft: #fce4ec;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: min(100%, 1120px);
+  padding: 28px clamp(14px, 3vw, 32px) 32px;
+  border-radius: 24px;
+  background: #ffffff;
+  color: var(--college-ink);
+  text-align: right;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+.b2b-platformer .college__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #f3f4f6;
+  text-align: center;
+}
+
+.b2b-platformer .college__subtitle {
+  max-width: 560px;
+  margin: 0 0 6px;
+  color: var(--college-muted);
+  font-size: clamp(16px, 2.4vw, 19px);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.b2b-platformer .college__title {
+  margin: 0;
+  color: var(--college-ink);
+  font-size: clamp(28px, 5vw, 46px);
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.b2b-platformer .college .score-summary {
+  color: var(--college-ink);
+  font-size: 18px;
+}
+
+.b2b-platformer .college .score-summary__best {
+  color: var(--college-muted);
+}
+
+.b2b-platformer .college__progress {
+  width: 100%;
+  max-width: 420px;
+}
+
+.b2b-platformer .college__progress-text {
+  margin-bottom: 6px;
+  color: var(--college-muted);
   font-size: 14px;
+  font-weight: 600;
+}
+
+.b2b-platformer .college__progress-text strong {
+  color: var(--college-teal);
+  font-size: 17px;
+}
+
+.b2b-platformer .college__progress-bar {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #f3f4f6;
+}
+
+.b2b-platformer .college__progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--college-teal);
+  transition: width 0.3s ease;
+}
+
+.b2b-platformer .college__lessons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* כותרת פרק על כל רוחב הגריד, כמו "פרק: ..." באתר */
+.b2b-platformer .college__chapter {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.b2b-platformer .college__chapter h4 {
+  margin: 0;
+  color: var(--college-ink);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.b2b-platformer .college__locked-pill {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--college-pink-soft);
+  color: var(--college-pink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.b2b-platformer .college__unlock-all {
+  margin-inline-start: auto;
+  padding: 8px 18px;
+  border: none;
+  border-radius: 999px;
+  background: var(--college-teal);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0, 194, 203, 0.35);
+}
+
+.b2b-platformer .lesson-item {
+  display: flex;
+}
+
+.b2b-platformer .lesson {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  overflow: hidden;
+  padding: 0;
+  border: none;
+  border-radius: 16px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+  transition: transform 0.4s, box-shadow 0.4s, filter 0.4s, opacity 0.4s;
+  animation: lesson-in 0.5s ease-out backwards;
+}
+
+/* פתוח: צל וריחוף. נעול: אפור ושקוף-למחצה, מתעורר בריחוף */
+.b2b-platformer .lesson--open {
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+}
+.b2b-platformer .lesson--open:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.18);
+}
+/* האפור רק על ה"תמונה", כדי שכפתור "לחצו לפתיחה" יישאר בטורקיז */
+.b2b-platformer .lesson:not(.lesson--open) {
+  opacity: 0.8;
+}
+.b2b-platformer .lesson:not(.lesson--open) .lesson__media {
+  filter: grayscale(1);
+  transition: filter 0.4s;
+}
+.b2b-platformer .lesson:not(.lesson--open):hover {
+  opacity: 1;
+}
+.b2b-platformer .lesson:not(.lesson--open):hover .lesson__media {
+  filter: none;
+}
+
+@keyframes lesson-in {
+  from { opacity: 0; transform: translateY(24px); }
+}
+
+.b2b-platformer .lesson__media {
+  position: relative;
+  display: grid;
+  height: 150px;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.35), transparent 60%),
+    var(--lesson-color, #00c2cb);
+}
+
+.b2b-platformer .lesson__logo {
+  display: grid;
+  width: 62%;
+  height: 62%;
+  place-items: center;
+  padding: 10px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  transition: transform 0.7s;
+}
+
+.b2b-platformer .lesson:hover .lesson__logo {
+  transform: scale(1.08);
+}
+
+.b2b-platformer .lesson__logo img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.b2b-platformer .lesson__logo .gift-logo-fallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  font-size: 22px;
+}
+.b2b-platformer .lesson__logo .gift-logo-fallback--text { font-size: 15px; }
+
+.b2b-platformer .lesson__shade {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.12);
+  transition: background 0.3s;
+}
+.b2b-platformer .lesson--open:hover .lesson__shade { background: rgba(0, 0, 0, 0.35); }
+.b2b-platformer .lesson:not(.lesson--open) .lesson__shade { background: rgba(17, 24, 39, 0.55); }
+
+/* עיגול במרכז: מנעול בשיעור נעול, ▶ שמופיע בריחוף בשיעור פתוח */
+.b2b-platformer .lesson__icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1px solid #374151;
+  border-radius: 50%;
+  background: rgba(17, 24, 39, 0.8);
+  color: #fff;
+  font-size: 20px;
+  transform: translate(-50%, -50%);
+  transition: opacity 0.3s, transform 0.3s;
+}
+.b2b-platformer .lesson--open .lesson__icon {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.5);
+}
+.b2b-platformer .lesson--open:hover .lesson__icon {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.b2b-platformer .lesson__tag {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 12px;
+}
+
+.b2b-platformer .lesson__body {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px 18px;
+  border: 1px solid #f3f4f6;
+  border-top: none;
+  border-radius: 0 0 16px 16px;
+}
+
+/* בריחוף על שיעור נעול: כפתור "לחצו לפתיחה" במקום "רכוש כדי לצפות" שבאתר */
+.b2b-platformer .lesson__cta {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(1px);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.b2b-platformer .lesson__cta span {
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: var(--college-teal);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+.b2b-platformer .lesson:hover .lesson__cta {
+  opacity: 1;
+}
+
+/* במסכי מגע אין ריחוף — הכפתור מוצג תמיד, כחלק מגוף הכרטיס ולא כשכבה מעליו */
+@media (hover: none) {
+  .b2b-platformer .lesson__cta {
+    position: static;
+    order: 1;
+    display: block;
+    margin-top: 4px;
+    background: none;
+    backdrop-filter: none;
+    opacity: 1;
+  }
+  .b2b-platformer .lesson__cta span {
+    display: inline-block;
+    padding: 4px 12px;
+    font-size: 12px;
+  }
+  .b2b-platformer .lesson:not(.lesson--open) {
+    opacity: 0.9;
+  }
+}
+
+.b2b-platformer .lesson__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.b2b-platformer .lesson__number {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--college-teal-soft);
+  color: var(--college-teal);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.b2b-platformer .lesson__check {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 50%;
+  background: #22c55e;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.b2b-platformer .lesson__title {
+  color: var(--college-ink);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+/* תיאור המתנה — עד שלוש שורות, כדי שתיאורים ארוכים לא ימתחו את הכרטיס */
+.b2b-platformer .lesson__desc {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  color: var(--college-ink);
+  font-size: 14px;
+  line-height: 1.45;
+  opacity: 0.85;
+}
+
+.b2b-platformer .lesson__teacher {
+  color: var(--college-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* בטלפון: שני כרטיסים בשורה ותמונה נמוכה, כדי שהרשימה לא תהיה ארוכה מדי */
+@media (max-width: 600px) {
+  .b2b-platformer .college {
+    border-radius: 18px;
+  }
+  .b2b-platformer .college__lessons {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .b2b-platformer .lesson__media {
+    height: 96px;
+  }
+  .b2b-platformer .lesson__icon {
+    width: 36px;
+    height: 36px;
+    font-size: 15px;
+  }
+  .b2b-platformer .lesson__tag {
+    display: none;
+  }
+  .b2b-platformer .lesson__body {
+    padding: 10px 12px 12px;
+  }
+  .b2b-platformer .lesson__title {
+    font-size: 14px;
+  }
+  .b2b-platformer .lesson__desc {
+    font-size: 12px;
+  }
+  .b2b-platformer .lesson__teacher {
+    font-size: 12px;
+  }
+  .b2b-platformer .college__unlock-all {
+    margin-inline-start: 0;
+  }
 }
 
 .b2b-platformer .primary-btn:disabled {
@@ -1077,12 +2259,500 @@
   border-radius: 6px;
 }
 
+/* לוגו רחב וצר מאוד (wideSign ב-businesses.js) — שלט רחב ונמוך, אחרת הלוגו יוצא פס דק.
+   לא רחב יותר: חלק מהמשבצות צמודות (0.04 מרוחב העולם), ושלט רחב מדי עולה על השכן */
+.b2b-platformer .key-item__logo--wide {
+  z-index: 1;
+  inset: -2px -44px;
+  padding: 3px 6px;
+}
+
 .b2b-platformer .key-item__key {
   right: -24px;
   bottom: -12px;
 }
 
-.b2b-platformer .gift-preview__logo,
-.b2b-platformer .gift-selection__logo {
+.b2b-platformer .gift-preview__logo {
   padding: 2px;
+}
+
+/* --- הדגמת קפיצה על מתנה במסך הפתיחה ---
+   הרובוט הגדול (intro-robot) קופץ על קופסת מתנה שעומדת לידו, והיא מתפוצצת.
+   --rs = גודל ריבוע תמונת הרובוט (תמונה 1024x1024: הרגליים ב-~96% מהגובה,
+   מרכז הגוף ב-~46% מהרוחב). כל חלקי ההדגמה חולקים אותו משך ועיכוב, כך
+   שהאחוזים ב-keyframes מסונכרנים ביניהם. */
+.b2b-platformer .intro-stage {
+  --rs: min(50vh, 44vw);
+  --demo-dur: 3.8s;
+  --demo-delay: 1.3s;
+}
+
+.b2b-platformer .intro-stage--demo .intro-bubble {
+  margin-bottom: calc(var(--rs) * 0.85);
+}
+
+/* מסלול הקפיצה של הרובוט (עד ~1.7 רוחבי רובוט מהשמאל) נשאר פנוי — הבועה מימינו */
+.b2b-platformer .intro-stage--demo {
+  padding-left: calc(var(--rs) * 1.75);
+}
+
+.b2b-platformer .intro-stage--demo .intro-robot {
+  z-index: 2;
+  width: var(--rs);
+  height: var(--rs);
+  max-width: none;
+  animation: intro-robot-glow 0.96s ease-in-out infinite,
+    intro-robot-demo-jump var(--demo-dur) linear var(--demo-delay) 1 both;
+}
+
+@keyframes intro-robot-demo-jump {
+  0%, 18% { transform: translate(0, -50%); }
+  22% { transform: translate(0, calc(-50% + var(--rs) * 0.03)); animation-timing-function: ease-out; }
+  34% { transform: translate(calc(var(--rs) * 0.45), calc(-50% - var(--rs) * 0.62)); animation-timing-function: ease-in; }
+  46% { transform: translate(calc(var(--rs) * 0.86), calc(-50% - var(--rs) * 0.34)); }
+  49% { transform: translate(calc(var(--rs) * 0.86), calc(-50% - var(--rs) * 0.31)); }
+  52% { transform: translate(calc(var(--rs) * 0.86), calc(-50% - var(--rs) * 0.34)); animation-timing-function: ease-in; }
+  62% { transform: translate(calc(var(--rs) * 0.86), -50%); }
+  80% { transform: translate(calc(var(--rs) * 0.86), -50%); animation-timing-function: ease-out; }
+  90% { transform: translate(calc(var(--rs) * 0.43), calc(-50% - var(--rs) * 0.2)); animation-timing-function: ease-in; }
+  100% { transform: translate(0, -50%); }
+}
+
+.b2b-platformer .intro-demo {
+  --bw: calc(var(--rs) * 0.74);
+  --bh: calc(var(--rs) * 0.34);
+  position: absolute;
+  left: calc(var(--robot-x, 0px) + var(--rs) * 0.95);
+  top: calc(var(--robot-y, 50%) + var(--rs) * 0.457 - var(--bh));
+  width: var(--bw);
+  height: var(--bh);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.b2b-platformer .intro-demo > * {
+  animation-duration: var(--demo-dur);
+  animation-delay: var(--demo-delay);
+  animation-fill-mode: both;
+  animation-iteration-count: 1;
+}
+
+.b2b-platformer .intro-demo__gift {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 10px;
+  background:
+    linear-gradient(90deg, transparent 45%, #c0392b 45%, #c0392b 55%, transparent 55%),
+    linear-gradient(135deg, #f4c95d 0%, #d99a2b 100%);
+  border: 3px solid #fff1c1;
+  box-shadow: 0 0 22px rgba(244, 201, 93, 0.85), inset 0 -6px 0 rgba(0, 0, 0, 0.18);
+  direction: rtl;
+  text-align: center;
+  line-height: 1.1;
+  transform-origin: 50% 100%;
+  animation-name: intro-demo-gift;
+}
+
+.b2b-platformer .intro-demo__gift-small {
+  font-size: max(12px, calc(var(--rs) * 0.04));
+  font-weight: 700;
+  color: #5a3a0a;
+  background: rgba(255, 248, 225, 0.9);
+  padding: 1px 10px;
+  border-radius: 10px;
+}
+
+.b2b-platformer .intro-demo__gift-big {
+  font-size: max(15px, calc(var(--rs) * 0.075));
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 2px 0 #8a4b00, 0 0 8px rgba(0, 0, 0, 0.45);
+  padding: 0 8px;
+}
+
+@keyframes intro-demo-gift {
+  0%, 46% { transform: scale(1, 1); opacity: 1; filter: brightness(1); }
+  49% { transform: scale(1.06, 0.84); opacity: 1; filter: brightness(1.25); }
+  53% { transform: scale(1.35, 1.25); opacity: 0.9; filter: brightness(2.2); }
+  59%, 100% { transform: scale(1.6, 1.5); opacity: 0; filter: brightness(3); }
+}
+
+.b2b-platformer .intro-demo__flash,
+.b2b-platformer .intro-demo__spark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+}
+
+.b2b-platformer .intro-demo__flash {
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, #ffe08a 40%, rgba(255, 180, 60, 0) 70%);
+  opacity: 0;
+  animation-name: intro-demo-flash;
+}
+
+@keyframes intro-demo-flash {
+  0%, 49% { transform: scale(0); opacity: 0; }
+  53% { transform: scale(12); opacity: 1; }
+  66%, 100% { transform: scale(18); opacity: 0; }
+}
+
+.b2b-platformer .intro-demo__spark {
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 2px;
+  background: #ffd76a;
+  box-shadow: 0 0 8px #ffb02e;
+  opacity: 0;
+  animation-name: intro-demo-spark;
+  animation-timing-function: cubic-bezier(0.1, 0.7, 0.3, 1);
+}
+
+.b2b-platformer .intro-demo__spark:nth-of-type(3n) { background: #ff6b6b; box-shadow: 0 0 8px #ff3b3b; }
+.b2b-platformer .intro-demo__spark:nth-of-type(3n + 1) { background: #7fe3ff; box-shadow: 0 0 8px #36daff; }
+
+@keyframes intro-demo-spark {
+  0%, 50% { transform: translate(0, 0) rotate(0) scale(0.4); opacity: 0; }
+  52% { transform: translate(0, 0) rotate(0) scale(1.3); opacity: 1; }
+  76% { transform: translate(calc(var(--dx) * 1.6), calc(var(--dy) * 1.6)) rotate(260deg) scale(1); opacity: 1; }
+  90%, 100% { transform: translate(calc(var(--dx) * 1.6), calc(var(--dy) * 1.6 + 40px)) rotate(360deg) scale(0.6); opacity: 0; }
+}
+
+.b2b-platformer .intro-demo__pop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 10%;
+  text-align: center;
+  direction: rtl;
+  font-size: max(22px, calc(var(--rs) * 0.11));
+  font-weight: 900;
+  color: #ffe08a;
+  text-shadow: 0 2px 0 #7a4a00, 0 0 14px rgba(255, 200, 80, 0.9);
+  opacity: 0;
+  animation-name: intro-demo-pop;
+}
+
+@keyframes intro-demo-pop {
+  0%, 56% { transform: scale(0.3); opacity: 0; }
+  64% { transform: scale(1.25); opacity: 1; }
+  70%, 100% { transform: scale(1); opacity: 1; }
+}
+
+/* כפתורים ושדות טופס לא יורשים פונט כברירת מחדל בדפדפן */
+.b2b-platformer button,
+.b2b-platformer input,
+.b2b-platformer textarea,
+.b2b-platformer select {
+  font-family: inherit;
+}
+
+.b2b-platformer .lead-form__error {
+  margin: 0;
+  color: #ffb4a8;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* כפתור "סיימתי לשחק" — למטה במרכז (בין כפתורי המגע בטלפון) */
+.b2b-platformer .finish-btn {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  z-index: 6;
+  padding: 9px 18px;
+  border: 2px solid #d4af5f;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #16407a 0%, #0c2c58 100%);
+  color: #fff6d8;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 0 12px rgba(212, 175, 95, 0.35);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+
+.b2b-platformer .finish-btn {
+  transform: translateX(-50%);
+}
+
+.b2b-platformer .finish-btn:hover {
+  transform: translate(-50%, -1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 18px rgba(212, 175, 95, 0.6);
+}
+
+.b2b-platformer .finish-btn:active {
+  transform: translate(-50%, 1px);
+}
+
+/* בטלפון/טאבלט כפתורי המגע תופסים את התחתית, והמצלמה תמיד ממרכזת את הרובוט —
+   לכן הכפתור עובר לפינה השמאלית העליונה של אזור המשחק, שם הוא לא מסתיר כלום */
+@media (max-width: 899px), (max-height: 500px), (pointer: coarse) {
+  .b2b-platformer .finish-btn,
+  .b2b-platformer .finish-btn:hover,
+  .b2b-platformer .finish-btn:active {
+    top: 8px;
+    bottom: auto;
+    left: 8px;
+    transform: none;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  /* חלונית המתנה יורדת מתחת לכפתור */
+  .b2b-platformer .gift-preview {
+    top: calc(var(--hud-h, 0px) + 48px);
+  }
+}
+
+/* --- טלפון לאורך: הבועה למעלה והרובוט מתחתיה (לא עליה) ---
+   --robot-y/--robot-x ממקמים גם את הרובוט וגם את קופסת ההדגמה (intro-demo) */
+@media (max-width: 600px) and (orientation: portrait) {
+  .b2b-platformer .scene.intro-scene {
+    padding-block: 16px 96px;
+  }
+  .b2b-platformer .intro-stage {
+    --rs: min(27vh, 48vw);
+    --robot-x: 4vw;
+    --robot-y: calc(100% - var(--rs) * 0.5);
+    flex-direction: column;
+    justify-content: flex-start;
+    min-height: 0;
+    padding-bottom: calc(var(--rs) + 8px);
+  }
+  .b2b-platformer .intro-stage--demo {
+    padding-left: 0;
+  }
+  .b2b-platformer .intro-stage--demo .intro-bubble {
+    margin-bottom: 0;
+  }
+  .b2b-platformer .intro-bubble {
+    max-width: 92vw;
+    padding: 16px 18px;
+    font-size: 21px;
+  }
+  .b2b-platformer .intro-robot {
+    width: var(--rs);
+    height: var(--rs);
+    max-width: none;
+  }
+}
+
+/* --- טלפון לרוחב (מסך נמוך): שלט קטן, הרובוט משמאל והבועה מימינו --- */
+@media (max-height: 500px) and (orientation: landscape) {
+  .b2b-platformer .scene.intro-scene {
+    padding-block: 8px 70px;
+  }
+  .b2b-platformer .intro-banner {
+    width: min(680px, 94vw, 62vh);
+  }
+  .b2b-platformer .intro-stage {
+    --rs: min(52vh, 26vw);
+    min-height: 0;
+    flex: 1 1 auto;
+    padding-left: calc(var(--rs) * 0.9);
+  }
+  .b2b-platformer .intro-stage--demo {
+    padding-left: calc(var(--rs) * 1.75);
+  }
+  .b2b-platformer .intro-stage--demo .intro-bubble {
+    margin-bottom: 0;
+  }
+  .b2b-platformer .intro-bubble {
+    padding: 12px 20px;
+    font-size: 19px;
+    line-height: 1.4;
+  }
+  .b2b-platformer .intro-robot {
+    width: var(--rs);
+    height: var(--rs);
+    max-width: none;
+  }
+  .b2b-platformer .intro-start-btn {
+    bottom: 22px;
+  }
+}
+
+/* --- חלונית המתנה בטלפון: קומפקטית, כדי לא להסתיר חצי מהמשחק --- */
+@media (max-width: 600px), (max-height: 500px) {
+  .b2b-platformer .gift-preview {
+    gap: 10px;
+    min-height: 0;
+    padding: 10px 12px;
+    border-width: 3px;
+    border-radius: 16px;
+  }
+  .b2b-platformer .gift-preview__logo {
+    flex-basis: 52px;
+    width: 52px;
+    height: 52px;
+  }
+  .b2b-platformer .gift-preview__copy {
+    gap: 2px;
+  }
+  .b2b-platformer .gift-preview__copy span {
+    font-size: 12px;
+  }
+  .b2b-platformer .gift-preview__copy strong {
+    font-size: 16px;
+    line-height: 1.2;
+  }
+  .b2b-platformer .gift-preview__desc {
+    font-size: 12.5px;
+    -webkit-line-clamp: 2;
+  }
+}
+
+/* טלפון לאורך נמוך (כמו iPhone SE) — שלט ורובוט קטנים יותר כדי שהכול ייכנס */
+@media (max-width: 600px) and (orientation: portrait) and (max-height: 720px) {
+  .b2b-platformer .intro-banner {
+    width: min(94vw, 300px);
+  }
+  .b2b-platformer .intro-stage {
+    --rs: min(22vh, 40vw);
+  }
+  .b2b-platformer .intro-bubble {
+    font-size: 18px;
+  }
+}
+
+.b2b-platformer .intro-start-btn {
+  white-space: nowrap;
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .b2b-platformer .intro-banner__text {
+    font-size: 15px;
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .b2b-platformer .intro-touch {
+    margin-top: 8px;
+  }
+  .b2b-platformer .intro-touch .touch-btn {
+    width: 46px;
+    height: 46px;
+    font-size: 18px;
+  }
+  .b2b-platformer .intro-touch .touch-btn--jump {
+    width: 52px;
+    height: 52px;
+  }
+}
+
+/* דילוג על המשחק — משני, בפינה, כדי לא להתחרות ב"התחילו לשחק" */
+.b2b-platformer .intro-skip-btn {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 1000;
+  padding: 7px 14px;
+  border: 1px solid rgba(212, 175, 95, 0.6);
+  border-radius: 999px;
+  background: rgba(8, 28, 60, 0.75);
+  color: #f1d896;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+.b2b-platformer .intro-skip-btn:hover {
+  background: rgba(22, 64, 122, 0.9);
+}
+
+/* --- הבהרה משפטית בתחתית כל המסכים --- */
+.b2b-platformer .fair-disclaimer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 999;
+  margin: 0;
+  padding: 2px 8px calc(2px + env(safe-area-inset-bottom, 0px));
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 10.5px;
+  line-height: 1.4;
+  text-align: center;
+  direction: rtl;
+  pointer-events: none;
+}
+
+/* במשחק — רק מתחת לאזור המשחק, לא על סרגל הצד */
+.b2b-platformer .fair-disclaimer--game {
+  left: var(--hud-w, 0px);
+}
+
+/* מסך הסיום נגלל — מקום לשורה בתחתית כדי שלא תסתיר את "שחקו שוב" */
+.b2b-platformer .scene:has(.college) {
+  padding-bottom: 48px;
+}
+
+/* --- חלונית המתנה במשחק: פס צר ושקוף למחצה כדי לא להסתיר את השלטים ---
+   בלי לוגו (הוא כבר על השלט שהרובוט עומד לידו), שם המתנה ותיאור בשורה אחת */
+.b2b-platformer .gift-preview {
+  align-items: center;
+  min-height: 0;
+  width: min(calc(100vw - var(--hud-w, 0px) - 16px), 760px);
+  padding: 8px 18px;
+  border-width: 3px;
+  border-radius: 16px;
+  opacity: 0.93;
+}
+.b2b-platformer .gift-preview::after {
+  display: none;
+}
+.b2b-platformer .gift-preview__logo {
+  display: none;
+}
+.b2b-platformer .gift-preview__copy {
+  gap: 1px;
+  width: 100%;
+  text-align: center;
+}
+.b2b-platformer .gift-preview__copy span {
+  font-size: 13px;
+}
+.b2b-platformer .gift-preview__copy strong {
+  overflow: hidden;
+  font-size: clamp(15px, 1.6vw, 20px);
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.b2b-platformer .gift-preview__desc {
+  margin: 0;
+  font-size: clamp(12px, 1.2vw, 15px);
+  -webkit-line-clamp: 1;
+}
+
+/* מסך נמוך (טלפון לרוחב): השלטים ממלאים את החצי העליון — הפס עולה לראש המסך,
+   בשורה אחת, ברוחב שמשאיר מקום לכפתור "סיימתי לשחק" שבפינה */
+@media (max-height: 500px) {
+  .b2b-platformer .gift-preview {
+    top: 6px;
+    width: min(calc(100vw - var(--hud-w, 0px) - 290px), 560px);
+    padding: 4px 12px;
+    border-width: 2px;
+    border-radius: 12px;
+  }
+  .b2b-platformer .gift-preview__copy span {
+    font-size: 11px;
+  }
+  .b2b-platformer .gift-preview__copy strong {
+    font-size: 14px;
+  }
+  .b2b-platformer .gift-preview__desc {
+    display: none;
+  }
 }

@@ -28,7 +28,13 @@ export const PLAYER_WIDTH = 20
 export const PLAYER_HEIGHT = 28
 
 // --- משחק ---
-export const ROUND_SECONDS = 83
+export const ROUND_SECONDS = 90
+// בונוס זמן חד-פעמי לכל סיבוב כשמגיעים לקומה העליונה — שם נאספות הכי מעט מתנות
+export const TOP_FLOOR_BONUS_SECONDS = 15
+// ניקוד: מתנה מקופסה שווה יותר (צריך לגלות אותה), ובקומה העליונה הכול כפול
+export const GIFT_POINTS = 100
+export const BOX_GIFT_POINTS = 200
+export const TOP_FLOOR_POINTS_MULTIPLIER = 2
 export const TOTAL_KEYS = Math.min(BUSINESSES.length, 30) // מפתח לכל עסק (יש 30 משבצות)
 
 // --- רקע: ספרייה רחבה עם שלוש קומות ---
@@ -58,8 +64,23 @@ const FLOOR_2_Y = Math.round(IMAGE_RENDER_HEIGHT * FLOOR_2_RATIO)
 export const GROUND_Y = Math.round(IMAGE_RENDER_HEIGHT * 0.96)
 
 // Gift details can be connected to the fair spreadsheet when its data is available.
-// רשימת העסקים והמתנות של היריד (מקובץ שנוצר מגיליון התגובות של העסקים)
-export const COURSES = BUSINESSES
+// רשימת העסקים והמתנות של היריד (מקובץ שנוצר מגיליון התגובות של העסקים).
+// הסדר מעורבב בכל טעינת דף — הוא קובע באיזו קומה/משבצת כל עסק יושב ואת הסדר
+// ברשימת הבחירה בסוף, כך שאף עסק לא תקוע קבוע בקומה העליונה (שמגיעים אליה פחות).
+// ערבוב פעם אחת לטעינה (ולא לכל סיבוב) כי "שחקו שוב" ממשיך עם המפתחות שכבר נאספו.
+function shuffled(items) {
+  const result = [...items]
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[result[i], result[j]] = [result[j], result[i]]
+  }
+  return result
+}
+export const COURSES = shuffled(BUSINESSES)
+
+// מקומות קבועים: id של עסק -> אינדקס משבצת ב-keySlots (0-9 קומה עליונה, 10-19 אמצעית,
+// 20-29 קרקע, משמאל לימין). שרלין — השלט השלישי משמאל בקומת הקרקע (קומה 1).
+const PINNED_SLOTS = { 'b2b-18': 22 }
 
 // --- בניית הרמה: שלוש קומות המחוברות בסולמות ---
 function buildLevel() {
@@ -106,11 +127,19 @@ function buildLevel() {
   ]
 
   // Ten keys per floor, with raised keys that require a jump to collect.
+  // גובה הקפיצות מוקטן לפי גובה המסך: כשהדמות עומדת על הרצפה, המצלמה רואה
+  // רק חצי קומה מעליה — בלי ההקטנה הלוגואים הגבוהים יצאו מהמסך במסכים נמוכים
+  const KEY_BASE_OFFSET = 88 // המרחק מהרצפה לראש מפתח רגיל (44 + 44)
+  const LOGO_TOP_MARGIN = 24 // מקום לתגית הלוגו שבולטת מעל המפתח + מרווח
+  const maxJump = Math.max(...floorSlots.flatMap(({ jumps }) => jumps))
+  const spaceAboveKey =
+    IMAGE_RENDER_HEIGHT / 6 - PLAYER_HEIGHT / 2 - KEY_BASE_OFFSET - LOGO_TOP_MARGIN
+  const jumpScale = Math.max(0, Math.min(0.6, spaceAboveKey / maxJump))
   const keySlots = [
     ...floorSlots.flatMap(({ floorY, xPositions, jumps }) =>
       xPositions.map((x, index) => ({
         x,
-        y: floorY - 44 - jumps[index],
+        y: floorY - 44 - Math.round(jumps[index] * jumpScale),
       }))
     ),
   ]
@@ -119,6 +148,12 @@ function buildLevel() {
   const usedSlotIndexes = Array.from({ length: TOTAL_KEYS }, (_, i) =>
     Math.min(keySlots.length - 1, Math.round((i * keySlots.length) / TOTAL_KEYS))
   )
+  // עסקים עם מקום קבוע (לא מוגרל): מחליפים מקום ב-COURSES עם מי שהוגרל למשבצת שלהם
+  for (const [courseId, slotIndex] of Object.entries(PINNED_SLOTS)) {
+    const from = COURSES.findIndex((course) => course.id === courseId)
+    const to = usedSlotIndexes.indexOf(slotIndex)
+    if (from >= 0 && to >= 0) [COURSES[from], COURSES[to]] = [COURSES[to], COURSES[from]]
+  }
   const courseBySlot = new Map(usedSlotIndexes.map((slotIndex, i) => [slotIndex, COURSES[i]]))
 
   // --- קופסאות מתנה (כמו קוביות "?" במריו): מכה מלמטה מקפיצה מפתח ---
@@ -135,6 +170,7 @@ function buildLevel() {
       keyId: `key-${courseBySlot.get(slotIndex).id}`,
       x: Math.round(IMAGE_RENDER_WIDTH * keySlots[slotIndex].x) - GIFT_BOX_SIZE / 2,
       y: floorYBySlotIndex(slotIndex) - GIFT_BOX_GAP_ABOVE_FLOOR - GIFT_BOX_SIZE,
+      floorY: floorYBySlotIndex(slotIndex),
       width: GIFT_BOX_SIZE,
       height: GIFT_BOX_SIZE,
     }))
@@ -149,6 +185,7 @@ function buildLevel() {
       gift: course,
       x: Math.round(IMAGE_RENDER_WIDTH * slot.x) - 16,
       y: slot.y - 44,
+      floorY: floorYBySlotIndex(slotIndex),
       inBox: keyIdsInBoxes.has(`key-${course.id}`),
     }
   })
