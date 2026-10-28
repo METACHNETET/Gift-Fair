@@ -357,6 +357,8 @@ const PLAYER_MAX_X = Math.min(WORLD_WIDTH, LEVEL.elevator.x + LEVEL.elevator.wid
 // fairs/b2bfair/early_signups — רשימת הדיוור: כל מי שמאשר דיוור (בפתיחה או בסוף)
 // fairs/b2bfair/finale_leads  — מי אסף/בחר אילו מתנות (shopIds = מזהי העסקים)
 const B2B_FAIR_ID = 'b2bfair'
+// כמה מפתחות צריך לאסוף כדי להיכנס להגרלה של יעל פיינגולד
+const RAFFLE_KEYS = 10
 const REF_PARAM = new URLSearchParams(window.location.search).get('ref') || ''
 
 async function addMailingSignup(email, source) {
@@ -677,6 +679,14 @@ function App() {
   const [leadConsent, setLeadConsent] = useState(() => readSavedEmail() !== '')
   const [leadBusy, setLeadBusy] = useState(false)
   const [leadError, setLeadError] = useState('')
+  const [raffleJoined, setRaffleJoined] = useState(false)
+  // מי שדילגה על המייל בפתיחה — מבקשים ממנה מייל רק כשהיא לוחצת על ההגרלה
+  const [raffleAskingEmail, setRaffleAskingEmail] = useState(false)
+  const [raffleEmail, setRaffleEmail] = useState('')
+  const [raffleConsent, setRaffleConsent] = useState(false)
+  const [raffleToastShown, setRaffleToastShown] = useState(false)
+  // סגרה את חלונית המייל בלי למלא — לא קופצים לה שוב
+  const raffleEmailDismissedRef = useRef(false)
   // אימייל שאישר דיוור בפתיחה — ממנו נשמרת ההתקדמות תוך כדי משחק
   const consentedEmailRef = useRef('')
   const signedUpEmailsRef = useRef(new Set())
@@ -745,6 +755,8 @@ function App() {
   // --- קלט מקלדת ---
   useEffect(() => {
     function handleKeyDown(e) {
+      // הקלדה בשדה (למשל מייל להגרלה) לא מזיזה את הדמות
+      if (e.target instanceof HTMLInputElement) return
       game.current.keysDown.add(e.code)
       // לחיצה קצרה מאוד יכולה להתחיל ולהיגמר בין שני פריימים — שומרים אותה
       if (!e.repeat && (e.code === 'ArrowDown' || e.code === 'KeyS')) {
@@ -1830,6 +1842,32 @@ function App() {
     }
   }
 
+  // הגרלה של יעל פיינגולד — מי שאוספת RAFFLE_KEYS מפתחות נכנסת אוטומטית עם המייל
+  // שנמסר בפתיחה; אם לא נמסר, מבקשים אותו באותו רגע
+  function joinRaffle(email) {
+    setRaffleJoined(true)
+    setRaffleToastShown(true)
+    window.setTimeout(() => setRaffleToastShown(false), 3500)
+    addMailingSignup(email, 'raffle').catch((err) => console.error('[b2bfair raffle]', err))
+  }
+
+  useEffect(() => {
+    if (raffleJoined || raffleAskingEmail || raffleEmailDismissedRef.current) return
+    if (collectedIds.size < RAFFLE_KEYS) return
+    const email = readSavedEmail()
+    if (email) joinRaffle(email)
+    else setRaffleAskingEmail(true)
+  }, [collectedIds, raffleJoined, raffleAskingEmail])
+
+  function handleRaffleSubmit(e) {
+    e.preventDefault()
+    const email = raffleEmail.trim()
+    if (!email || !raffleConsent) return
+    writeSavedEmail(email)
+    setRaffleAskingEmail(false)
+    joinRaffle(email)
+  }
+
   function toggleGiftSelection(giftId) {
     setClaimedGiftIds((previous) => {
       const next = new Set(previous)
@@ -2009,15 +2047,20 @@ function App() {
               <span className="hud-contact__email" dir="ltr">dvoraz@schoolframe.net</span>
             </a>
 
-            <div className="hud-sponsor">
-              <span className="hud-sponsor__label">בשיתוף</span>
+            <div className={`hud-sponsor hud-raffle${raffleJoined ? ' hud-raffle--joined' : ''}`}>
+              <span className="hud-sponsor__label">🎁 הגרלה</span>
+              <span className="hud-sponsor__name">פגישת ייעוץ ומיקוד בשווי 2,500 ₪ + מע״מ</span>
               <img
                 className="hud-sponsor__logo"
                 src="/b2bfair/logos/b2b-24.png"
                 alt="יעל פיינגולד"
                 draggable={false}
               />
-              <span className="hud-sponsor__name">יעל פיינגולד</span>
+              <span className="hud-raffle__cta">
+                {raffleJoined
+                  ? '✅ נכנסת להגרלה!'
+                  : `אספי ${RAFFLE_KEYS} מפתחות ותיכנסי להגרלה (${Math.min(keysCollectedCount, RAFFLE_KEYS)}/${RAFFLE_KEYS})`}
+              </span>
             </div>
           </div>
         </aside>
@@ -2090,7 +2133,9 @@ function App() {
             {LEVEL.ladders.map((l, i) => (
               <div
                 key={i}
-                className="ladder"
+                className={`ladder${
+                  phase === 'playing' && giftsAboveCount > 0 && l.bottomY === currentFloorY ? ' ladder--hint' : ''
+                }`}
                 style={{
                   left: l.x,
                   top: l.topY,
@@ -2245,6 +2290,13 @@ function App() {
                 </div>
               )}
 
+              {raffleToastShown && (
+                <div className="caught-toast caught-toast--raffle" dir="rtl">
+                  🎉 אספת {RAFFLE_KEYS} מפתחות! נכנסת להגרלה על{' '}
+                  <strong>פגישת ייעוץ ומיקוד בשווי 2,500 ₪ + מע״מ</strong>
+                </div>
+              )}
+
               {caughtToast && (
                 <div className="caught-toast" dir="rtl" key={caughtToast.id}>
                   🔓 נפתח שיעור: <strong>{caughtToast.giftName}</strong>
@@ -2309,6 +2361,47 @@ function App() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {raffleAskingEmail && (
+        <div
+          className="intro-lead-overlay"
+          onClick={(e) => {
+            if (e.target !== e.currentTarget) return
+            raffleEmailDismissedRef.current = true
+            setRaffleAskingEmail(false)
+          }}
+        >
+          <form className="lead-form intro-lead-overlay__card" onSubmit={handleRaffleSubmit}>
+            <div className="intro-lead-overlay__heading">🎁 הגרלה</div>
+            <div className="intro-lead-overlay__question">
+              אספת {RAFFLE_KEYS} מפתחות! לאן לשלוח לך הודעה אם זכית בפגישת ייעוץ ומיקוד?
+            </div>
+            <input
+              type="email"
+              placeholder="אימייל"
+              value={raffleEmail}
+              onChange={(e) => setRaffleEmail(e.target.value)}
+              autoFocus
+              required
+            />
+            <label className="consent-check">
+              <input
+                type="checkbox"
+                checked={raffleConsent}
+                onChange={(e) => setRaffleConsent(e.target.checked)}
+              />
+              <span>מאשרת קבלת דיוור מיעל פיינגולד וממנהלות היריד</span>
+            </label>
+            <button
+              type="submit"
+              className="primary-btn intro-lead-overlay__submit"
+              disabled={!raffleEmail.trim() || !raffleConsent}
+            >
+              כנסי להגרלה
+            </button>
+          </form>
         </div>
       )}
 
