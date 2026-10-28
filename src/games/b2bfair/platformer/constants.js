@@ -223,16 +223,18 @@ function buildLevel() {
   // --- דלתות סודיות (כמו הצינורות במריו): ⬇ מול דלת מעביר לדלת השנייה ---
   const DOOR_WIDTH = 54
   const DOOR_HEIGHT = 84
+  // הדלתות ממורכזות בין שתי משבצות מפתחות (0.05/0.14 בקרקע, 0.78/0.88 למעלה) —
+  // דלת צמודה למפתח גרמה ל-⬇ ליד המפתח לשגר את הרובוט לדלת השנייה
   const doors = [
     {
       id: 'door-ground',
-      x: Math.round(IMAGE_RENDER_WIDTH * 0.105) - DOOR_WIDTH / 2,
+      x: Math.round(IMAGE_RENDER_WIDTH * 0.095) - DOOR_WIDTH / 2,
       y: GROUND_Y - DOOR_HEIGHT,
       targetId: 'door-top',
     },
     {
       id: 'door-top',
-      x: Math.round(IMAGE_RENDER_WIDTH * 0.86) - DOOR_WIDTH / 2,
+      x: Math.round(IMAGE_RENDER_WIDTH * 0.83) - DOOR_WIDTH / 2,
       y: FLOOR_1_Y - DOOR_HEIGHT,
       targetId: 'door-ground',
     },

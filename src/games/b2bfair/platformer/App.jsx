@@ -185,6 +185,7 @@ function IntroKeyboard({ pressed }) {
         </div>
       </div>
       <div className="intro-keyboard__caption">↑ קפיצה &nbsp;·&nbsp; ← → הליכה</div>
+      <div className="intro-keyboard__caption">🖱️ או: לחיצה עם העכבר במקום שאליו רוצים להגיע</div>
     </div>
   )
 }
@@ -601,6 +602,36 @@ function spawnX(viewportWidth) {
 // במכשירי מגע ההוראות מראות את כפתורי המגע במקום חיצי המקלדת
 const IS_TOUCH = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
 
+// גובה רגלי הרובוט מתחתית המסך, כחלק מגובה המסך (ראו cameraY ב-syncCameraToDOM)
+const CAMERA_FEET_FROM_BOTTOM = 0.24
+// ההליכה מאיצה מעמידה למהירות מלאה ב-WALK_ACCEL_SECONDS — לחיצה קצרה זזה מעט
+// (כדי לעמוד בדיוק מתחת למתנה), החזקה ממושכת הולכת מהר כמו קודם
+const WALK_ACCEL_SECONDS = 0.28
+
+// שליטה בעכבר על לוח המשחק (למי שלא חושבת על החיצים): לוחצים ומחזיקים לאן
+// שרוצים להגיע — הרובוט הולך לשם; נקודה מעל הראש = קפיצה/טיפוס, מתחת לרגליים = ירידה.
+// המיקום נשמר בפיקסלים של המסך ומתורגם לעולם בכל פריים, כי המצלמה זזה עם הרובוט.
+const POINTER_DEAD_ZONE = 18
+// לחיצה קצרה מעל הראש "מחזיקה" את הקפיצה עוד קצת, אחרת השחרור המהיר קוטע אותה
+const POINTER_JUMP_HOLD_MS = 280
+
+function pointerWorldY(g) {
+  return g.cameraY + g.pointer.y / g.zoom
+}
+
+function pointerControls(g, now) {
+  const jumpHeld = now < g.pointerJumpUntil
+  if (!g.pointer.down) return { left: false, right: false, up: jumpHeld, down: false }
+  const dx = g.cameraX + g.pointer.x / g.zoom - (g.x + PLAYER_WIDTH / 2)
+  const worldY = pointerWorldY(g)
+  return {
+    left: dx < -POINTER_DEAD_ZONE,
+    right: dx > POINTER_DEAD_ZONE,
+    up: jumpHeld || worldY < g.y,
+    down: worldY > g.y + PLAYER_HEIGHT + POINTER_DEAD_ZONE,
+  }
+}
+
 // 'start' -> 'countdown' -> 'playing' -> 'ended'
 function App() {
   const [phase, setPhase] = useState('start')
@@ -633,14 +664,17 @@ function App() {
   // (מי שמנסה ללחוץ על הלוח כנראה לא יודעת שמשחקים עם החיצים)
   const [controlsHintId, setControlsHintId] = useState(0)
   const controlsHintTimerRef = useRef(null)
+  // ההסבר על החיצים קופץ רק בלחיצת העכבר הראשונה — מעכשיו העכבר עצמו מזיז את הרובוט
+  const mouseHintShownRef = useRef(false)
   // השיא שהיה לפני הסיבוב הנוכחי + האם נשבר — נקבע במעבר למסך הסיום
   const [scoreRecord, setScoreRecord] = useState({ previousBest: 0, isNew: false })
   const [claimedGiftIds, setClaimedGiftIds] = useState(() => new Set())
   // מי שהשאיר מייל בפתיחה לא מתבקש להקליד אותו שוב בסיום (אלא אם לחץ "לשנות")
-  const [introEmailGiven, setIntroEmailGiven] = useState(false)
+  // מייל שמור מכניסה קודמת נחשב "כבר נמסר" — גם למי שדילגה ישר לשיעורים
+  const [introEmailGiven, setIntroEmailGiven] = useState(() => readSavedEmail() !== '')
   const [editingLeadEmail, setEditingLeadEmail] = useState(false)
   const [leadEmail, setLeadEmail] = useState(readSavedEmail)
-  const [leadConsent, setLeadConsent] = useState(false)
+  const [leadConsent, setLeadConsent] = useState(() => readSavedEmail() !== '')
   const [leadBusy, setLeadBusy] = useState(false)
   const [leadError, setLeadError] = useState('')
   // אימייל שאישר דיוור בפתיחה — ממנו נשמרת ההתקדמות תוך כדי משחק
@@ -697,6 +731,8 @@ function App() {
     lastTime: null,
     nearbyKeyId: null,
     zoom: 1,
+    pointer: { down: false, x: 0, y: 0 },
+    pointerJumpUntil: 0,
   })
 
   // גובה/רוחב המסך בפועל — נשמר גם ב-state כדי שגודל שכבת העולם יתעדכן בזמן אמת
@@ -773,7 +809,10 @@ function App() {
     }
     g.cameraX = cameraX
 
-    let cameraY = g.y + PLAYER_HEIGHT / 2 - vh / 2
+    // הרגליים ברבע התחתון של המסך (לא באמצע): מעל הרובוט נשאר רוב גובה הקומה
+    // לשלטים המורמים, ולא מבזבזים חצי מסך על הקומה שמתחת. במסכים רחבים ונמוכים
+    // מרכוז רגיל חתך את השלטים הגבוהים בראש המסך.
+    let cameraY = g.y + PLAYER_HEIGHT - vh * (1 - CAMERA_FEET_FROM_BOTTOM)
     cameraY = Math.max(0, Math.min(worldHeight - vh, cameraY))
     g.cameraY = cameraY
 
@@ -975,18 +1014,20 @@ function App() {
         if (g.groundKind === 'elevator') g.y += elevator.y - previousElevatorY
       }
 
-      const left = g.keysDown.has('ArrowLeft') || g.keysDown.has('KeyA')
-      const right = g.keysDown.has('ArrowRight') || g.keysDown.has('KeyD')
-      const upPressed = g.keysDown.has('ArrowUp') || g.keysDown.has('KeyW')
-      const downPressed = g.keysDown.has('ArrowDown') || g.keysDown.has('KeyS')
+      const pointer = pointerControls(g, now)
+      const left = g.keysDown.has('ArrowLeft') || g.keysDown.has('KeyA') || pointer.left
+      const right = g.keysDown.has('ArrowRight') || g.keysDown.has('KeyD') || pointer.right
+      const upPressed = g.keysDown.has('ArrowUp') || g.keysDown.has('KeyW') || pointer.up
+      const downPressed = g.keysDown.has('ArrowDown') || g.keysDown.has('KeyS') || pointer.down
       const jumpPressed = upPressed || g.keysDown.has('Space')
 
       // תנועה אופקית
+      const walkAccel = (MOVE_SPEED / WALK_ACCEL_SECONDS) * dt
       if (left && !right) {
-        g.vx = -MOVE_SPEED
+        g.vx = Math.max(-MOVE_SPEED, Math.min(0, g.vx) - walkAccel)
         g.facing = -1
       } else if (right && !left) {
-        g.vx = MOVE_SPEED
+        g.vx = Math.min(MOVE_SPEED, Math.max(0, g.vx) + walkAccel)
         g.facing = 1
       } else {
         g.vx = 0
@@ -1059,11 +1100,14 @@ function App() {
           playerFeetY < l.bottomY + 4
       )
 
-      if (ladder && (upPressed || downPressed)) {
+      // עומדים בראש הסולם (על הרצפה העליונה) — ⬆ כאן היא קפיצה, לא "טיפוס" שנגמר
+      // מיד ובולע את הקפיצה. אחרת מפתח ליד פתח הסולם כמעט בלתי אפשרי לתפוס.
+      const atLadderTop = ladder && !g.climbing && Math.abs(playerFeetY - ladder.topY) < 4
+      if (ladder && (downPressed || (upPressed && !atLadderTop))) {
         // טיפוס: גרביטציה מבוטלת, תנועה אנכית חופשית בגבולות הסולם
         g.climbing = true
         g.vy = upPressed ? -CLIMB_SPEED : CLIMB_SPEED
-      } else if (ladder && !g.onGround) {
+      } else if (ladder && !g.onGround && g.climbing) {
         // תלויה על הסולם בלי ללחוץ למעלה/למטה — נשארת במקום
         g.climbing = true
         g.vy = 0
@@ -1179,7 +1223,11 @@ function App() {
           const wasInside = g.x + PLAYER_WIDTH > shaftLeft && g.x < shaftRight
           const centerInside = g.x + PLAYER_WIDTH / 2 >= shaftLeft && g.x + PLAYER_WIDTH / 2 <= shaftRight
           if (wasInside && centerInside) {
-            nextX = Math.max(shaftLeft, Math.min(shaftRight - PLAYER_WIDTH, nextX))
+            // נעילה רק בנסיעה על המעלית. מי שנשארה בפיר בלעדיה (קפצה, או שהמעלית
+            // יצאה) עומדת על רצפת הקומה — יוצאת חופשי, אחרת נתקעת עד שהמעלית חוזרת
+            if (g.groundKind === 'elevator') {
+              nextX = Math.max(shaftLeft, Math.min(shaftRight - PLAYER_WIDTH, nextX))
+            }
           } else {
             nextX = g.x + PLAYER_WIDTH / 2 < (shaftLeft + shaftRight) / 2 ? shaftLeft - PLAYER_WIDTH : shaftRight
           }
@@ -1596,6 +1644,14 @@ function App() {
     }
   }, [phase, introStep])
 
+  function updatePointer(e, isDown) {
+    const rect = viewportRef.current.getBoundingClientRect()
+    const pointer = game.current.pointer
+    pointer.down = isDown
+    pointer.x = e.clientX - rect.left
+    pointer.y = e.clientY - rect.top
+  }
+
   function flashControlsHint(ms = 4000) {
     window.clearTimeout(controlsHintTimerRef.current)
     setControlsHintId(Date.now())
@@ -1660,6 +1716,8 @@ function App() {
     game.current.dropThroughUntil = 0
     game.current.downWasDown = false
     game.current.downTapped = false
+    game.current.pointer.down = false
+    game.current.pointerJumpUntil = 0
     game.current.elevator = createElevatorState()
     // "שחקו שוב" ממשיך מאיפה שעצרו: מפתחות שכבר נאספו (והמתנות שנבחרו) נשמרים,
     // והקופסאות שהמפתח שלהן כבר נאסף נשארות פתוחות — אוספים רק את מה שעוד לא
@@ -1713,6 +1771,9 @@ function App() {
         signedUpEmailsRef.current.add(email)
         addMailingSignup(email, 'intro').catch((err) => console.error('[b2bfair early_signup]', err))
       }
+    } else {
+      // מחקה את המייל השמור / ביטלה את האישור — בסוף נשאל שוב
+      setIntroEmailGiven(false)
     }
     startGame()
   }
@@ -1892,7 +1953,7 @@ function App() {
                 <div className="intro-lead-overlay__controls">
                   {IS_TOUCH
                     ? '🎮 משחקים עם הכפתורים שבתחתית המסך'
-                    : '🎮 משחקים עם החיצים במקלדת: ⬅️ ➡️ הליכה · ⬆️ קפיצה'}
+                    : '🎮 משחקים עם החיצים במקלדת: ⬅️ ➡️ הליכה · ⬆️ קפיצה — או בלחיצת עכבר על המקום שאליו רוצים להגיע'}
                 </div>
                 <button
                   type="submit"
@@ -1967,7 +2028,25 @@ function App() {
           className="game-viewport"
           ref={viewportRef}
           onPointerDown={(e) => {
-            if (phase === 'playing' && !e.target.closest('button')) flashControlsHint()
+            if (phase !== 'playing' || e.target.closest('button')) return
+            e.currentTarget.setPointerCapture(e.pointerId)
+            const g = game.current
+            updatePointer(e, true)
+            if (pointerWorldY(g) < g.y) g.pointerJumpUntil = performance.now() + POINTER_JUMP_HOLD_MS
+            if (pointerWorldY(g) > g.y + PLAYER_HEIGHT + POINTER_DEAD_ZONE) g.downTapped = true
+            if (!mouseHintShownRef.current) {
+              mouseHintShownRef.current = true
+              flashControlsHint()
+            }
+          }}
+          onPointerMove={(e) => {
+            if (game.current.pointer.down) updatePointer(e, true)
+          }}
+          onPointerUp={() => {
+            game.current.pointer.down = false
+          }}
+          onPointerCancel={() => {
+            game.current.pointer.down = false
           }}
         >
           <div className="parallax-layer parallax-sky" />
@@ -2160,7 +2239,7 @@ function App() {
                     <>
                       משחקים עם <strong>החיצים במקלדת</strong>: ⬅️ ➡️ הליכה · ⬆️ קפיצה · ⬇️ ירידה
                       <br />
-                      (או עם הכפתורים שבתחתית המסך)
+                      או: <strong>לוחצים ומחזיקים עם העכבר</strong> לאן שרוצים להגיע (מעל הרובוט = קפיצה)
                     </>
                   )}
                 </div>
@@ -2320,7 +2399,9 @@ function App() {
           </div>
 
           <p className="result-badge">
-            לאן לשלוח לך את השיעורים שפתחת?
+            {introEmailGiven && !editingLeadEmail
+              ? 'המייל שלך כבר אצלנו — נשאר רק ללחוץ ולקבל את השיעורים'
+              : 'לאן לשלוח לך את השיעורים שפתחת?'}
           </p>
 
           {!leadSubmitted ? (

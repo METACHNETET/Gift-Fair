@@ -579,6 +579,10 @@
   inset: var(--hud-h, 0px) 0 0 var(--hud-w, 0px);
   overflow: hidden;
   background: #12101a;
+  /* לחיצה/גרירה על הלוח מזיזה את הרובוט — לא גוללת ולא מסמנת טקסט */
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
 }
 
 .b2b-platformer .parallax-layer {

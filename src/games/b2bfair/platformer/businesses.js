@@ -28,7 +28,7 @@ export const BUSINESSES = [
   {"id": "b2b-24", "businessName": "יעל פיינגולד", "giftName": "איך לשמר התמדה וצמיחה בעסק", "giftDescription": "", "giftUrl": "", "logoUrl": "/b2bfair/logos/b2b-24.png", "color": "#f0d800"},
   {"id": "b2b-25", "businessName": "רחלי שפינגלט", "giftName": "הבוט שיודע איפה לפרסם", "giftDescription": "כל השמות. כל המיילים. כל הטלפונים. עכשיו אצלך בצ'אטג'יפיטי", "giftUrl": "", "logoUrl": "/b2bfair/logos/b2b-25.png", "color": "#f04818"},
   {"id": "b2b-26", "businessName": "וייס - מרכז הפרסום במייל", "giftName": "המדריך לפרסום חכם שעובד", "giftDescription": "מדריך מיוחד לשיווק ופרסום חכם שעובד", "giftUrl": "https://weiss-pirsum.com/", "logoUrl": "/b2bfair/logos/b2b-26.png", "color": "#001848"},
-  {"id": "b2b-27", "businessName": "יעל זלץ", "giftName": "מחכה למתנה", "giftDescription": "", "giftUrl": "", "logoUrl": "", "logoText": "יעל זלץ", "color": "#7a3fb0"},
+  {"id": "b2b-27", "businessName": "יעל זלץ", "giftName": "מחכה למתנה", "giftDescription": "", "giftUrl": "", "logoUrl": "/b2bfair/logos/b2b-27.png", "color": "#7a3fb0"},
   {"id": "b2b-28", "businessName": "ידידוני לעסקים - טלאל סעדון", "giftName": "10% הנחה קבועה על פרסום ברשימת התפוצה של ידידוני", "giftDescription": "רשימת תפוצה של כ-7000 נשות חינוך. ולמצטרפות — 30% הנחה לפרסום חד\"פ", "giftUrl": "https://talelbs70.minisite.ms/147", "logoUrl": "/b2bfair/logos/b2b-28.png", "color": "#f03018"},
   {"id": "b2b-29", "businessName": "חני כהן פיננסים", "giftName": "סימולטור חיסכון לקראת סוף שנת המס", "giftDescription": "סימולטור לחיסכון לקראת סוף שנת המס - פנסיה, השתלמות, תרומות והחזר הוצאות", "giftUrl": "https://forms.fillout.com/t/hdi2Lhjwe6us", "logoUrl": "/b2bfair/logos/b2b-29.png", "color": "#034b6e"},
 ]
