@@ -193,10 +193,13 @@ function buildLevel() {
   // --- מדפים צפים בין הקומות: עולים עליהם מלמטה, ⬇ מפיל מהם ---
   // המדפים ממורכזים ברווח שבין שתי משבצות מפתחות, כדי שלא יכסו מפתח מלמעלה
   // (מפתח נאסף בנחיתה עליו — מדף מעליו היה תופס את הדמות קודם)
+  // גובה המדף: 40% מהמרחק בין הקומות, ולא יותר מ-150px — הקפיצה המלאה מגיעה
+  // לכ-209px, כך שגם במסכים גדולים (שבהם העולם גדל) נשאר מרווח לעלות עליו
   const SHELF_WIDTH = 90
+  const SHELF_MAX_RISE = 150
   const shelf = (centerRatio, upperFloorY, lowerFloorY) => ({
     x: Math.round(IMAGE_RENDER_WIDTH * centerRatio) - SHELF_WIDTH / 2,
-    y: Math.round((upperFloorY + lowerFloorY) / 2),
+    y: lowerFloorY - Math.round(Math.min((lowerFloorY - upperFloorY) * 0.4, SHELF_MAX_RISE)),
     width: SHELF_WIDTH,
     height: 14,
     kind: 'shelf',

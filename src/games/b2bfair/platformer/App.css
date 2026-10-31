@@ -1088,6 +1088,10 @@
   font-size: 12px;
   font-weight: 800;
 }
+.b2b-platformer .hud-raffle__supervision {
+  font-size: 9px;
+  opacity: 0.75;
+}
 .b2b-platformer .hud-raffle--joined .hud-raffle__cta {
   background: #22a35a;
   color: #fff;

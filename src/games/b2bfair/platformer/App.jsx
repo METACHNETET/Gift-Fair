@@ -2061,6 +2061,7 @@ function App() {
                   ? '✅ נכנסת להגרלה!'
                   : `אספי ${RAFFLE_KEYS} מפתחות ותיכנסי להגרלה (${Math.min(keysCollectedCount, RAFFLE_KEYS)}/${RAFFLE_KEYS})`}
               </span>
+              <span className="hud-raffle__supervision">הגרלה בפיקוח משרדי רוזה רייך</span>
             </div>
           </div>
         </aside>
