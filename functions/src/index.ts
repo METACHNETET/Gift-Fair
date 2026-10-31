@@ -157,15 +157,13 @@ async function sendB2BThankYouEmail({ email }: { email: string }) {
             <p style="margin:6px 0 0;color:#d4af5f;font-size:14px;font-weight:700">המכללה לקפיצה עסקית · יריד B2B</p>
           </div>
           <div style="padding:26px 28px 30px">
-            <p style="margin:0 0 14px;font-size:16px">תודה שהשתתפתם ביריד! בעלי העסקים אורזים לכם את הקורסים והמתנות שבחרתם בתשומת לב.</p>
-            <p style="margin:0;font-size:17px;color:#16407a;font-weight:700">הם בדרך אליכם למייל :)</p>
+            <p style="margin:0;font-size:17px;color:#16407a;font-weight:700">בע"ה בימים הקרובים תקבלו את השיעורים והמתנות שבחרתם אליכם לתיבת המייל</p>
           </div>
         </div>
       `,
       text: `העסק שלכם הולך לקפוץ!
 
-תודה שהשתתפתם ביריד B2B! בעלי העסקים אורזים לכם את הקורסים והמתנות שבחרתם בתשומת לב.
-הם בדרך אליכם למייל :)`,
+בע"ה בימים הקרובים תקבלו את השיעורים והמתנות שבחרתם אליכם לתיבת המייל`,
     }),
   });
 
