@@ -31,5 +31,5 @@ export const BUSINESSES = [
   {"id": "b2b-27", "businessName": "יעל זלץ", "giftName": "מיני הרצאה על העסקת עובדות – האם זה עניין של אופי?", "giftDescription": "", "giftUrl": "", "logoUrl": "/b2bfair/logos/b2b-27.png", "color": "#7a3fb0"},
   {"id": "b2b-28", "businessName": "ידידוני לעסקים - טלאל סעדון", "giftName": "10% הנחה קבועה על פרסום ברשימת התפוצה של ידידוני", "giftDescription": "רשימת תפוצה של כ-7000 נשות חינוך. ולמצטרפות — 30% הנחה לפרסום חד\"פ", "giftUrl": "https://talelbs70.minisite.ms/147", "logoUrl": "/b2bfair/logos/b2b-28.png", "color": "#f03018"},
   {"id": "b2b-29", "businessName": "חני כהן פיננסים", "giftName": "סימולטור חיסכון לקראת סוף שנת המס", "giftDescription": "סימולטור לחיסכון לקראת סוף שנת המס - פנסיה, השתלמות, תרומות והחזר הוצאות", "giftUrl": "https://forms.fillout.com/t/hdi2Lhjwe6us", "logoUrl": "/b2bfair/logos/b2b-29.png", "color": "#034b6e"},
-  {"id": "b2b-30", "businessName": "SchoolFrame", "giftName": "הדרכה לצילום עסקי", "giftDescription": "", "giftUrl": "", "logoUrl": "/b2bfair/logos/b2b-30.png", "wideSign": true, "color": "#2e5feb"},
+  {"id": "b2b-30", "businessName": "אורטל לוי", "giftName": "כשיש מהלך ברור יש כסף בקופה!", "giftDescription": "תצליחו לאסוף 1000 נקודות ולקבל תובנה שתהפוך לכם את המכירות?", "giftUrl": "", "logoUrl": "/b2bfair/logos/b2b-30.png", "wideSign": true, "color": "#f43f8e"},
 ]
