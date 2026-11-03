@@ -170,6 +170,7 @@ exports.getShops = (0, https_1.onRequest)((req, res) => {
 // POST /api/leads  body: { shopId, name, email }
 exports.saveLead = (0, https_1.onRequest)((req, res) => {
     cors(req, res, async () => {
+        var _a, _b;
         if (req.method !== "POST") {
             res.status(405).send("Method Not Allowed");
             return;
@@ -185,14 +186,21 @@ exports.saveLead = (0, https_1.onRequest)((req, res) => {
                 res.json({ ok: true, localEmailTestOnly: true });
                 return;
             }
-            const existing = await db.collection(`fairs/${FAIR}/shops/${shopId}/leads`)
-                .where("email", "==", email).limit(1).get();
-            if (!existing.empty) {
-                res.status(409).json({ ok: false, error: "already_registered" });
-                return;
+            // Reads are best-effort: if the read quota is exhausted we still save the lead
+            let shop;
+            try {
+                const existing = await db.collection(`fairs/${FAIR}/shops/${shopId}/leads`)
+                    .where("email", "==", email).limit(1).get();
+                if (!existing.empty) {
+                    res.status(409).json({ ok: false, error: "already_registered" });
+                    return;
+                }
+                const shopDoc = await db.collection(`fairs/${FAIR}/shops`).doc(shopId).get();
+                shop = shopDoc.data();
             }
-            const shopDoc = await db.collection(`fairs/${FAIR}/shops`).doc(shopId).get();
-            const shop = shopDoc.data();
+            catch (readError) {
+                console.error("[saveLead] Read failed, saving lead anyway:", readError);
+            }
             await db.collection(`fairs/${FAIR}/shops/${shopId}/leads`).add({
                 shopId,
                 name,
@@ -203,8 +211,8 @@ exports.saveLead = (0, https_1.onRequest)((req, res) => {
                 await sendThankYouEmail({
                     name,
                     email,
-                    giftName: shop === null || shop === void 0 ? void 0 : shop.giftName,
-                    businessName: shop === null || shop === void 0 ? void 0 : shop.businessName,
+                    giftName: (_a = shop === null || shop === void 0 ? void 0 : shop.giftName) !== null && _a !== void 0 ? _a : giftName,
+                    businessName: (_b = shop === null || shop === void 0 ? void 0 : shop.businessName) !== null && _b !== void 0 ? _b : businessName,
                 });
             }
             catch (mailError) {

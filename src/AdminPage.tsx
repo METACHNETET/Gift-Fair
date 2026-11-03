@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useAuth } from "./lib/AuthContext";
 import { auth, db } from "./lib/firebase";
 import { signInWithPopup, GoogleAuthProvider, signOut, signInWithEmailAndPassword } from "firebase/auth";
-import { collection, getDocsFromServer, query, orderBy, doc, setDoc, arrayUnion } from "firebase/firestore";
+import { collection, getDocsFromServer, getDocsFromCache, getCountFromServer, query, where, doc, setDoc, arrayUnion, Timestamp, QueryDocumentSnapshot } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Shop } from "./types";
 import GENERATED_SHOPS from "./shops-data";
@@ -77,6 +77,51 @@ interface SimpleFairData {
 
 const EMPTY_SIMPLE_FAIR: SimpleFairData = { shops: [], finaleLeads: [], earlySignups: [], refStats: [], exportedByShop: {} };
 
+const FAIR_LABELS: Record<ActiveFair, string> = { giftfair: "יריד המתנות", summerfair: "יריד החופש", b2bfair: "יריד B2B" };
+
+// ─── קריאה חסכונית מ-Firestore ────────────────────────────────────────────────
+// כל מסמך שנקרא מהשרת נכנס למטמון המקומי (persistentLocalCache). בטעינות הבאות
+// מבקשים מהשרת רק מסמכים שנוצרו/עודכנו מאז הסנכרון הקודם, ואת השאר לוקחים מהמטמון.
+// פעם ביום (או כשאין מטמון) קוראים הכול מחדש — כדי לתפוס גם מחיקות.
+const SYNC_MARGIN_MS = 5 * 60 * 1000;          // מרווח ביטחון — קוראים שוב גם 5 דקות אחורה
+const FULL_SYNC_EVERY_MS = 24 * 60 * 60 * 1000;
+
+const tsMillis = (ts: unknown) => (ts as Timestamp | undefined)?.toMillis?.() ?? 0;
+
+async function fetchCollectionIncremental(path: string, tsFields: string[]): Promise<QueryDocumentSnapshot[]> {
+  const col = collection(db, path);
+  const key = `admin-sync:${path}`;
+  let state: { syncedAt: number; fullAt: number } | null = null;
+  try { state = JSON.parse(localStorage.getItem(key) ?? "null"); } catch { /* אין גישה ל-localStorage */ }
+  const save = (s: { syncedAt: number; fullAt: number }) => {
+    try { localStorage.setItem(key, JSON.stringify(s)); } catch { /* אין גישה ל-localStorage */ }
+  };
+
+  // נקודת הסנכרון היא חותמת הזמן (של השרת) הכי מאוחרת שראינו — לא השעון של המחשב
+  const latestTs = (docs: QueryDocumentSnapshot[]) =>
+    Math.max(0, ...docs.flatMap(d => tsFields.map(f => tsMillis(d.data()[f]))));
+
+  const now = Date.now();
+  if (state && now - state.fullAt < FULL_SYNC_EVERY_MS) {
+    const since = Timestamp.fromMillis(Math.max(0, state.syncedAt - SYNC_MARGIN_MS));
+    const [countSnap] = await Promise.all([
+      getCountFromServer(col),
+      ...tsFields.map(f => getDocsFromServer(query(col, where(f, ">=", since)))),
+    ]);
+    const cached = await getDocsFromCache(col).catch(() => null);
+    // המטמון יכול להיות חלקי (לשונית נוספת פתוחה → מטמון בזיכרון בלבד, ניקוי מטמון וכו').
+    // סומכים עליו רק אם מספר המסמכים בו זהה לספירה בשרת (ספירה = קריאה אחת לכל 1000 מסמכים).
+    if (cached && !cached.empty && cached.size === countSnap.data().count) {
+      save({ syncedAt: Math.max(state.syncedAt, latestTs(cached.docs)), fullAt: state.fullAt });
+      return cached.docs;
+    }
+  }
+
+  const full = await getDocsFromServer(col);
+  save({ syncedAt: latestTs(full.docs), fullAt: now });
+  return full.docs;
+}
+
 // ─── AdminPage ────────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { user, loading } = useAuth();
@@ -111,15 +156,16 @@ export default function AdminPage() {
 
   // ─── Fetch GiftFair ──────────────────────────────────────────────────────────
   const fetchGiftFair = useCallback(async () => {
-    const [finaleSnap, interestsSnap, earlySnap, exportedSnap] = await Promise.all([
-      getDocsFromServer(query(collection(db, "fairs", "main_fair", "finale_leads"), orderBy("claimedAt", "desc"))),
-      getDocsFromServer(collection(db, "fairs", "main_fair", "shop_interests")),
-      getDocsFromServer(collection(db, "fairs", "main_fair", "early_signups")),
-      getDocsFromServer(collection(db, "fairs", "main_fair", "exported_leads")),
+    const [finaleUnsorted, interestsDocs, earlyDocs, exportedDocs] = await Promise.all([
+      fetchCollectionIncremental("fairs/main_fair/finale_leads", ["claimedAt", "updatedAt"]),
+      fetchCollectionIncremental("fairs/main_fair/shop_interests", ["collectedAt"]),
+      fetchCollectionIncremental("fairs/main_fair/early_signups", ["signedUpAt"]),
+      getDocsFromServer(collection(db, "fairs", "main_fair", "exported_leads")).then(s => s.docs),
     ]);
+    const finaleDocs = [...finaleUnsorted].sort((a, b) => tsMillis(b.data().claimedAt) - tsMillis(a.data().claimedAt));
 
     const exportedMap: Record<string, Set<string>> = {};
-    exportedSnap.docs.forEach(d => {
+    exportedDocs.forEach(d => {
       exportedMap[d.id] = new Set((d.data().emails as string[] | undefined) ?? []);
     });
     setExportedByShop(exportedMap);
@@ -127,7 +173,7 @@ export default function AdminPage() {
     const shopEmailSets: Record<string, Set<string>> = {};
     const shopAnonCounts: Record<string, number> = {};
 
-    finaleSnap.docs.forEach(d => {
+    finaleDocs.forEach(d => {
       const email = d.data().email as string | undefined;
       const docShopIds = (d.data().shopIds as string[] | undefined) ?? [];
       docShopIds.forEach(shopId => {
@@ -137,7 +183,7 @@ export default function AdminPage() {
       });
     });
 
-    interestsSnap.docs.forEach(d => {
+    interestsDocs.forEach(d => {
       const shopId = d.data().shopId as string | undefined;
       const email = d.data().email as string | undefined;
       if (!shopId || !email) return;
@@ -152,26 +198,26 @@ export default function AdminPage() {
     results.sort((a, b) => b.leadCount - a.leadCount);
     setShops(results);
 
-    setFinaleLeads(finaleSnap.docs.map(d => ({
+    setFinaleLeads(finaleDocs.map(d => ({
       name: d.data().name as string,
       email: d.data().email as string,
       shopIds: (d.data().shopIds as string[] | undefined) ?? [],
       claimedAt: d.data().claimedAt ?? null,
     })));
 
-    setShopInterests(interestsSnap.docs.map(d => ({
+    setShopInterests(interestsDocs.map(d => ({
       shopId: d.data().shopId as string,
       email: (d.data().email as string | undefined) ?? null,
       collectedAt: d.data().collectedAt ?? null,
     })));
 
-    setEarlySignups(earlySnap.docs.map(d => ({
+    setEarlySignups(earlyDocs.map(d => ({
       email: (d.data().email as string | undefined) ?? null,
       signedUpAt: d.data().signedUpAt ?? null,
     })));
 
     const refMap: Record<string, number> = {};
-    finaleSnap.docs.forEach(d => {
+    finaleDocs.forEach(d => {
       const r = (d.data().ref as string | undefined) ?? "(ישיר)";
       refMap[r] = (refMap[r] ?? 0) + 1;
     });
@@ -180,19 +226,19 @@ export default function AdminPage() {
 
   // ─── Fetch SummerFair / B2B ──────────────────────────────────────────────────
   const fetchSimpleFair = useCallback(async (fairId: SimpleFairId) => {
-    const [finaleSnap, earlySnap, exportedSnap] = await Promise.all([
-      getDocsFromServer(collection(db, "fairs", fairId, "finale_leads")),
-      getDocsFromServer(collection(db, "fairs", fairId, "early_signups")),
-      getDocsFromServer(collection(db, "fairs", fairId, "exported_leads")),
+    const [finaleDocs, earlyDocs, exportedDocs] = await Promise.all([
+      fetchCollectionIncremental(`fairs/${fairId}/finale_leads`, ["claimedAt", "updatedAt"]),
+      fetchCollectionIncremental(`fairs/${fairId}/early_signups`, ["signedUpAt"]),
+      getDocsFromServer(collection(db, "fairs", fairId, "exported_leads")).then(s => s.docs),
     ]);
 
     const exportedMap: Record<string, Set<string>> = {};
-    exportedSnap.docs.forEach(d => {
+    exportedDocs.forEach(d => {
       exportedMap[d.id] = new Set((d.data().emails as string[] | undefined) ?? []);
     });
 
     const shopEmailSets: Record<string, Set<string>> = {};
-    finaleSnap.docs.forEach(d => {
+    finaleDocs.forEach(d => {
       const email = d.data().email as string | undefined;
       const docShopIds = (d.data().shopIds as string[] | undefined) ?? [];
       docShopIds.forEach(shopId => {
@@ -208,20 +254,20 @@ export default function AdminPage() {
     shopsWithLeads.sort((a, b) => b.leadCount - a.leadCount);
 
     const refMap: Record<string, number> = {};
-    finaleSnap.docs.forEach(d => {
+    finaleDocs.forEach(d => {
       const r = (d.data().ref as string | undefined) || "(ישיר)";
       refMap[r] = (refMap[r] ?? 0) + 1;
     });
 
     const data: SimpleFairData = {
       shops: shopsWithLeads,
-      finaleLeads: finaleSnap.docs.map(d => ({
+      finaleLeads: finaleDocs.map(d => ({
         name: d.data().name as string,
         email: d.data().email as string,
         shopIds: (d.data().shopIds as string[] | undefined) ?? [],
         claimedAt: d.data().claimedAt ?? null,
       })),
-      earlySignups: earlySnap.docs.map(d => ({
+      earlySignups: earlyDocs.map(d => ({
         email: (d.data().email as string | undefined) ?? null,
         signedUpAt: d.data().signedUpAt ?? null,
       })),
@@ -231,24 +277,29 @@ export default function AdminPage() {
     setSimpleFairs(prev => ({ ...prev, [fairId]: data }));
   }, []);
 
-  // ─── Fetch all ───────────────────────────────────────────────────────────────
+  // ─── Fetch active fair ───────────────────────────────────────────────────────
+  // טוענים רק את היריד המוצג; יריד אחר נטען בפעם הראשונה שעוברים אליו
+  const [loadedFairs, setLoadedFairs] = useState<Set<ActiveFair>>(new Set());
+
   const fetchData = useCallback(async () => {
+    const fair = activeFair;
     setFetching(true);
     setFetchError(null);
-    const errors: string[] = [];
-    await Promise.all([
-      fetchGiftFair().catch(err => { console.error("fetchGiftFair failed:", err); errors.push("יריד המתנות: " + (err instanceof Error ? err.message : String(err))); }),
-      fetchSimpleFair("summerfair").catch(err => { console.error("fetchSummerFair failed:", err); errors.push("יריד החופש: " + (err instanceof Error ? err.message : String(err))); }),
-      fetchSimpleFair("b2bfair").catch(err => { console.error("fetchB2BFair failed:", err); errors.push("יריד B2B: " + (err instanceof Error ? err.message : String(err))); }),
-    ]);
-    if (errors.length) setFetchError(errors.join(" | "));
-    setLastUpdated(new Date());
+    try {
+      if (fair === "giftfair") await fetchGiftFair();
+      else await fetchSimpleFair(fair);
+      setLoadedFairs(prev => new Set(prev).add(fair));
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error(`fetch ${fair} failed:`, err);
+      setFetchError(FAIR_LABELS[fair] + ": " + (err instanceof Error ? err.message : String(err)));
+    }
     setFetching(false);
-  }, [fetchGiftFair, fetchSimpleFair]);
+  }, [activeFair, fetchGiftFair, fetchSimpleFair]);
 
   useEffect(() => {
-    if (isAdmin) fetchData();
-  }, [isAdmin, fetchData]);
+    if (isAdmin && !loadedFairs.has(activeFair)) fetchData();
+  }, [isAdmin, activeFair, loadedFairs, fetchData]);
 
   // ─── Auth handlers ────────────────────────────────────────────────────────────
   const handleLogin = async () => {

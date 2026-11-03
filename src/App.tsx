@@ -2284,13 +2284,20 @@ function BusinessDashboard({ onBack }: { onBack: () => void }) {
       collection(db, "fairs", "main_fair", "finale_leads"),
       orderBy("claimedAt", "desc")
     );
+    // Shop leads + early signups are read once per mount, not on every new finale lead
+    let extrasPromise: ReturnType<typeof fetchExtras> | null = null;
+    const fetchExtras = () => Promise.all([
+      getDocs(collectionGroup(db, "leads")),
+      getDocs(collection(db, "fairs", "main_fair", "early_signups")),
+    ]);
     const unsub = onSnapshot(q, async snap => {
       const finaleLeads = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as FinaleLead));
       setAllFinaleLeads(finaleLeads);
 
-      // One-time fetch of all shop leads to find anyone not in finale
+      // Find anyone in shop leads who is not in finale
       const finaleEmails = new Set(finaleLeads.map((fl: FinaleLead) => fl.email.toLowerCase().trim()));
-      const shopSnap = await getDocs(collectionGroup(db, "leads"));
+      extrasPromise ??= fetchExtras();
+      const [shopSnap, earlySnap] = await extrasPromise;
       const extra: Lead[] = [];
       const seen = new Set<string>();
       shopSnap.docs.forEach(doc => {
@@ -2306,8 +2313,7 @@ function BusinessDashboard({ onBack }: { onBack: () => void }) {
       });
       setShopOnlyLeads(extra);
 
-      // Fetch early_signups (people who entered email at the start dialog)
-      const earlySnap = await getDocs(collection(db, "fairs", "main_fair", "early_signups"));
+      // early_signups (people who entered email at the start dialog)
       setEarlySignups(earlySnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as { id: string; email: string; name?: string; signedUpAt: any })));
 
       setAdminLoading(false);
